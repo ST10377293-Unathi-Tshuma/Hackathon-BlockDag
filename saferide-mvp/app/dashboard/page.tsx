@@ -69,6 +69,12 @@ function UserDashboard() {
     retry: retryStats
   } = useApiState<UserStatistics>()
 
+  const {
+    loading: saveLoading,
+    error: saveError,
+    execute: saveProfile
+  } = useApiState()
+
   // Local state for editing
   const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -145,12 +151,6 @@ function UserDashboard() {
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
-
-  const {
-    loading: saveLoading,
-    error: saveError,
-    execute: saveProfile
-  } = useApiState()
 
   const handleSaveProfile = async () => {
     if (!editedProfile || !user?.id) return
@@ -730,18 +730,4 @@ function UserDashboard() {
   )
 }
 
-export default withErrorBoundary(UserDashboard, {
-  fallback: ({ error, retry }) => (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <ErrorDisplay
-        error={error}
-        variant="card"
-        title="Dashboard Error"
-        description="Something went wrong while loading your dashboard."
-        showRetry
-        onRetry={retry}
-        className="max-w-md"
-      />
-    </div>
-  )
-});
+export default withErrorBoundary(UserDashboard);
