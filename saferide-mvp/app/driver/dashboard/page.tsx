@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,14 +27,49 @@ import {
   BarChart3,
   Calendar,
   Target,
+  LogOut,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
+import { useAuth } from "@/lib/auth-context"
+import { ApiService } from "@/lib/api"
 
 export default function DriverDashboard() {
+  const router = useRouter()
+  const { user, logout, isLoading } = useAuth()
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState("")
   const [isOnline, setIsOnline] = useState(false)
   const [hasActiveRide, setHasActiveRide] = useState(false)
+  const [isAuthChecking, setIsAuthChecking] = useState(true)
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        router.push('/login')
+        return
+      }
+      setIsAuthChecking(false)
+    }
+  }, [user, isLoading, router])
+
+  // Show loading spinner while checking authentication
+  if (isLoading || isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center gap-2">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated
+  if (!user) {
+    return null
+  }
 
   // Mock driver data
   const driverProfile = {
@@ -194,6 +230,15 @@ export default function DriverDashboard() {
                   {formatAddress(walletAddress)}
                 </Badge>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={logout}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </Button>
             </div>
           </div>
         </div>

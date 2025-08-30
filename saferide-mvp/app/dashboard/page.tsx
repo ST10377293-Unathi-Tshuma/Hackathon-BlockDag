@@ -1,134 +1,216 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Shield,
   Car,
-  Wallet,
-  User,
-  Settings,
-  History,
-  Star,
-  MapPin,
   Clock,
+  DollarSign,
+  Leaf,
+  Mail,
+  Phone,
+  Save,
+  Settings,
+  Shield,
+  Star,
+  TrendingUp,
+  User,
+  Wallet,
+  X,
+  Loader2,
+  AlertCircle,
+  History,
+  MapPin,
   CreditCard,
   Edit3,
-  Save,
-  X,
   Home,
-  Phone,
-  Mail,
+  LogOut,
 } from "lucide-react"
+import { useBlockchain } from "@/hooks/use-blockchain"
+import { ApiService } from "@/lib/api"
+import { UserProfile, UserStatistics, Ride } from "@/lib/types"
+import { useAuth } from "@/lib/auth-context"
+import { useApiState } from "@/hooks/useApiState"
+import ErrorDisplay from "@/components/ErrorDisplay"
+import LoadingState from "@/components/LoadingState"
+import { withErrorBoundary } from "@/components/ErrorBoundary"
 import Link from "next/link"
 
-export default function UserDashboard() {
-  const [isWalletConnected, setIsWalletConnected] = useState(false)
-  const [walletAddress, setWalletAddress] = useState("")
+function UserDashboard() {
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth()
+  const { isWalletConnected, walletAddress, connectWallet } = useBlockchain()
+  const {
+    data: userProfile,
+    loading: profileLoading,
+    error: profileError,
+    execute: loadProfile,
+    retry: retryProfile
+  } = useApiState<UserProfile>()
+  
+  const {
+    data: rideHistory,
+    loading: historyLoading,
+    error: historyError,
+    execute: loadHistory,
+    retry: retryHistory
+  } = useApiState<{ data: Ride[], total: number }>()
+
+  const {
+    data: userStats,
+    loading: statsLoading,
+    error: statsError,
+    execute: loadStats,
+    retry: retryStats
+  } = useApiState<UserStatistics>()
+
+  // Local state for editing
+  const [editedProfile, setEditedProfile] = useState<UserProfile | null>(null)
   const [isEditing, setIsEditing] = useState(false)
-  const [userProfile, setUserProfile] = useState({
-    name: "Alex Johnson",
-    email: "alex.johnson@email.com",
-    phone: "+1 (555) 123-4567",
-    avatar: "/placeholder-user.png",
-  })
-  const [editedProfile, setEditedProfile] = useState(userProfile)
 
-  // Mock data for user stats and recent activity
-  const userStats = {
-    totalRides: 47,
-    rating: 4.8,
-    totalSpent: 342.5,
-    carbonSaved: 125.3,
-  }
+  const apiService = new ApiService()
 
-  const recentRides = [
-    {
-      id: 1,
-      from: "Downtown Office",
-      to: "Home",
-      date: "Today, 6:30 PM",
-      cost: 12.5,
-      status: "completed",
-      driver: "Driver #A7B2",
-    },
-    {
-      id: 2,
-      from: "Airport",
-      to: "Hotel District",
-      date: "Yesterday, 2:15 PM",
-      cost: 28.75,
-      status: "completed",
-      driver: "Driver #C9D4",
-    },
-    {
-      id: 3,
-      from: "Shopping Mall",
-      to: "Restaurant",
-      date: "Dec 15, 7:45 PM",
-      cost: 8.25,
-      status: "completed",
-      driver: "Driver #E1F6",
-    },
-  ]
-
-  // Check wallet connection on load
+  // Redirect to login if not authenticated
   useEffect(() => {
-    checkWalletConnection().catch((error) => {
-      console.error("Failed to check wallet connection:", error)
-    })
-  }, [])
-
-  const checkWalletConnection = async () => {
-    if (typeof window !== "undefined" && window.ethereum) {
-      try {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" })
-        if (accounts.length > 0) {
-          setIsWalletConnected(true)
-          setWalletAddress(accounts[0])
-        }
-      } catch (error) {
-        console.error("Error checking wallet connection:", error)
-        setIsWalletConnected(false)
-        setWalletAddress("")
-      }
+    if (!authLoading && !isAuthenticated) {
+      window.location.href = '/auth/login'
     }
+  }, [isAuthenticated, authLoading])
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    )
   }
 
-  const connectWallet = async () => {
-    if (typeof window !== "undefined" && window.ethereum) {
-      try {
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" })
-        if (accounts.length > 0) {
-          setIsWalletConnected(true)
-          setWalletAddress(accounts[0])
-        }
-      } catch (error) {
-        console.error("Error connecting wallet:", error)
-        setIsWalletConnected(false)
-        setWalletAddress("")
-      }
-    }
+  // Don't render if not authenticated
+  if (!isAuthenticated || !user) {
+    return null
   }
+
+  // Load user data on component mount
+  useEffect(() => {
+    if (!user?.id) return
+    
+    const loadUserData = async () => {
+      // Set auth token for API requests
+      const token = localStorage.getItem('accessToken')
+      if (token) {
+        apiService.setAuthToken(token)
+      }
+      
+      // Load user profile, statistics, and ride history
+      await Promise.all([
+        loadProfile(async () => {
+          const response = await apiService.getUserProfile(user.id)
+          if (response.success && response.data) {
+            setEditedProfile(response.data)
+            return response.data
+          }
+          throw new Error(response.error || 'Failed to load profile')
+        }),
+        loadStats(async () => {
+          const response = await apiService.getUserStatistics(user.id)
+          if (response.success && response.data) {
+            return response.data
+          }
+          throw new Error(response.error || 'Failed to load statistics')
+        }),
+        loadHistory(async () => {
+          const response = await apiService.getUserRideHistory(user.id, { limit: 3 })
+          if (response.success && response.data) {
+            return response.data
+          }
+          throw new Error(response.error || 'Failed to load ride history')
+        })
+      ])
+    }
+    
+    loadUserData()
+  }, [user?.id, loadProfile, loadStats, loadHistory])
+
+  // Wallet connection is handled by useBlockchain hook
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`
   }
 
-  const handleSaveProfile = () => {
-    setUserProfile(editedProfile)
-    setIsEditing(false)
+  const {
+    loading: saveLoading,
+    error: saveError,
+    execute: saveProfile
+  } = useApiState()
+
+  const handleSaveProfile = async () => {
+    if (!editedProfile || !user?.id) return
+    
+    await saveProfile(async () => {
+      const token = localStorage.getItem('accessToken')
+      if (token) {
+        apiService.setAuthToken(token)
+      }
+      
+      const response = await apiService.updateUserProfile(user.id, editedProfile)
+      if (response.success && response.data) {
+        setEditedProfile(response.data)
+        setIsEditing(false)
+        // Reload profile data
+        await loadProfile(async () => {
+          const profileResponse = await apiService.getUserProfile(user.id)
+          if (profileResponse.success && profileResponse.data) {
+            return profileResponse.data
+          }
+          throw new Error(profileResponse.error || 'Failed to reload profile')
+        })
+        return response.data
+      }
+      throw new Error(response.error || 'Failed to save profile')
+    })
   }
 
   const handleCancelEdit = () => {
     setEditedProfile(userProfile)
     setIsEditing(false)
+  }
+
+  if (profileLoading || historyLoading || statsLoading) {
+    return <LoadingState variant="page" message="Loading dashboard..." />
+  }
+
+  if (profileError || statsError) {
+    return (
+      <ErrorDisplay
+        variant="page"
+        title="Dashboard Error"
+        message={(profileError || statsError)?.message || "Failed to load dashboard data"}
+        onRetry={() => {
+          if (profileError) retryProfile()
+          if (statsError) retryStats()
+        }}
+        showRetry
+      />
+    )
+  }
+
+  if (!userProfile || !userStats) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">No user data available</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -161,10 +243,28 @@ export default function UserDashboard() {
                   Connect Wallet
                 </Button>
               )}
+              <Button onClick={logout} size="sm" variant="outline" className="bg-transparent">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Error Display */}
+      {historyError && (
+        <div className="container mx-auto px-4 py-6">
+          <ErrorDisplay
+            variant="alert"
+            title="Failed to Load Recent Rides"
+            message={historyError.message || "Unable to fetch your recent ride history."}
+            onRetry={retryHistory}
+            showRetry
+            className="mb-6"
+          />
+        </div>
+      )}
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* Welcome Section */}
@@ -284,32 +384,48 @@ export default function UserDashboard() {
                   <CardDescription>Your latest ride activity</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {recentRides.map((ride) => (
-                    <div
-                      key={ride.id}
-                      className="flex items-center justify-between p-3 border border-border rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
-                          <MapPin className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground text-sm">
-                            {ride.from} → {ride.to}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {ride.date} • {ride.driver}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium text-foreground">${ride.cost}</p>
-                        <Badge variant="secondary" className="text-xs">
-                          {ride.status}
-                        </Badge>
-                      </div>
+                  {historyLoading ? (
+                    <LoadingState message="Loading recent rides..." />
+                  ) : historyError ? (
+                    <ErrorDisplay 
+                      error={historyError} 
+                      onRetry={retryHistory}
+                      title="Failed to load recent rides"
+                    />
+                  ) : rideHistory.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Car className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>No rides yet</p>
+                      <p className="text-sm">Book your first ride to get started!</p>
                     </div>
-                  ))}
+                  ) : (
+                    rideHistory.slice(0, 3).map((ride) => (
+                      <div
+                        key={ride.id}
+                        className="flex items-center justify-between p-3 border border-border rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+                            <MapPin className="w-5 h-5 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground text-sm">
+                              {ride.pickup_location} → {ride.destination}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(ride.created_at).toLocaleDateString()} • {ride.driver_name || 'Driver'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium text-foreground">${ride.fare}</p>
+                          <Badge variant="secondary" className="text-xs">
+                            {ride.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))
+                  )}
                   <Button variant="outline" className="w-full bg-transparent" asChild>
                     <Link href="/rides">View All Rides</Link>
                   </Button>
@@ -392,8 +508,8 @@ export default function UserDashboard() {
                     {isEditing ? (
                       <Input
                         id="name"
-                        value={editedProfile.name}
-                        onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                        value={editedProfile?.name || ''}
+                        onChange={(e) => setEditedProfile(prev => prev ? { ...prev, name: e.target.value } : null)}
                       />
                     ) : (
                       <div className="flex items-center gap-2 p-2 border border-border rounded-md">
@@ -409,8 +525,8 @@ export default function UserDashboard() {
                       <Input
                         id="email"
                         type="email"
-                        value={editedProfile.email}
-                        onChange={(e) => setEditedProfile({ ...editedProfile, email: e.target.value })}
+                        value={editedProfile?.email || ''}
+                        onChange={(e) => setEditedProfile(prev => prev ? { ...prev, email: e.target.value } : null)}
                       />
                     ) : (
                       <div className="flex items-center gap-2 p-2 border border-border rounded-md">
@@ -425,8 +541,8 @@ export default function UserDashboard() {
                     {isEditing ? (
                       <Input
                         id="phone"
-                        value={editedProfile.phone}
-                        onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
+                        value={editedProfile?.phone || ''}
+                        onChange={(e) => setEditedProfile(prev => prev ? { ...prev, phone: e.target.value } : null)}
                       />
                     ) : (
                       <div className="flex items-center gap-2 p-2 border border-border rounded-md">
@@ -448,15 +564,38 @@ export default function UserDashboard() {
                 </div>
 
                 {isEditing && (
-                  <div className="flex gap-2">
-                    <Button onClick={handleSaveProfile} className="bg-primary hover:bg-primary/90">
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Changes
-                    </Button>
-                    <Button variant="outline" onClick={handleCancelEdit}>
-                      <X className="w-4 h-4 mr-2" />
-                      Cancel
-                    </Button>
+                  <div className="space-y-4">
+                    {saveError && (
+                      <ErrorDisplay 
+                        error={saveError} 
+                        onRetry={handleSaveProfile}
+                        title="Failed to save profile"
+                        variant="inline"
+                      />
+                    )}
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={handleSaveProfile} 
+                        disabled={saveLoading}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        {saveLoading ? (
+                          <>
+                            <div className="w-4 h-4 mr-2 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4 mr-2" />
+                            Save Changes
+                          </>
+                        )}
+                      </Button>
+                      <Button variant="outline" onClick={handleCancelEdit} disabled={saveLoading}>
+                        <X className="w-4 h-4 mr-2" />
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -472,36 +611,55 @@ export default function UserDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {recentRides.map((ride) => (
-                    <div
-                      key={ride.id}
-                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                          <Car className="w-6 h-6 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            {ride.from} → {ride.to}
-                          </p>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {ride.date}
-                            </span>
-                            <span>{ride.driver}</span>
+                  {historyLoading ? (
+                    <LoadingState message="Loading ride history..." />
+                  ) : historyError ? (
+                    <ErrorDisplay 
+                      error={historyError} 
+                      onRetry={retryHistory}
+                      title="Failed to load ride history"
+                    />
+                  ) : rideHistory.length > 0 ? (
+                    rideHistory.map((ride) => (
+                      <div
+                        key={ride.id}
+                        className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                            <Car className="w-6 h-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-foreground">
+                              {ride.pickup_location} → {ride.destination}
+                            </p>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {new Date(ride.created_at).toLocaleDateString()}
+                              </span>
+                              <span>{ride.driver_name || `Driver #${ride.driver_id}`}</span>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-foreground text-lg">${ride.fare}</p>
+                          <Badge 
+                            variant={ride.status === 'completed' ? 'default' : ride.status === 'cancelled' ? 'destructive' : 'secondary'} 
+                            className="mt-1"
+                          >
+                            {ride.status}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-foreground text-lg">${ride.cost}</p>
-                        <Badge variant="secondary" className="mt-1">
-                          {ride.status}
-                        </Badge>
-                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <Car className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-muted-foreground">No rides yet</p>
+                      <p className="text-sm text-muted-foreground mt-1">Book your first ride to see it here</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -571,3 +729,19 @@ export default function UserDashboard() {
     </div>
   )
 }
+
+export default withErrorBoundary(UserDashboard, {
+  fallback: ({ error, retry }) => (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <ErrorDisplay
+        error={error}
+        variant="card"
+        title="Dashboard Error"
+        description="Something went wrong while loading your dashboard."
+        showRetry
+        onRetry={retry}
+        className="max-w-md"
+      />
+    </div>
+  )
+});

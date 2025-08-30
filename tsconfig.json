@@ -1,0 +1,74 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "./dist",
+    "rootDir": "./",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": false,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./api/*"],
+      "@shared/*": ["./shared/*"],
+      "@contracts/*": ["./contracts/*"],
+      "@utils/*": ["./api/utils/*"],
+      "@middleware/*": ["./api/middleware/*"],
+      "@services/*": ["./api/services/*"],
+      "@types/*": ["./shared/types/*"]
+    },
+    "typeRoots": [
+      "./node_modules/@types",
+      "./shared/types"
+    ],
+    "types": [
+      "node",
+      "jest"
+    ]
+  },
+  "include": [
+    "api/**/*",
+    "shared/**/*",
+    "contracts/**/*",
+    "scripts/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "build",
+    "public"
+  ],
+  "ts-node": {
+    "esm": false,
+    "experimentalSpecifierResolution": "node",
+    "require": [
+      "tsconfig-paths/register"
+    ]
+  }
+}

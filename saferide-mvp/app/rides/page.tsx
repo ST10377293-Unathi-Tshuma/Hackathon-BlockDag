@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,8 +26,17 @@ import {
   Calendar,
   Route,
   User,
+  Loader2,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
+import { ApiService } from "@/lib/api"
+import type { Ride as ApiRide } from "@/lib/types"
+import { useAuth } from "@/lib/auth-context"
+import { useApiState } from "@/hooks/useApiState"
+import ErrorDisplay from "@/components/ErrorDisplay"
+import LoadingState from "@/components/LoadingState"
+import { withErrorBoundary } from "@/components/ErrorBoundary"
 
 interface Ride {
   id: string
@@ -58,7 +68,9 @@ interface Ride {
   route?: Array<{ lat: number; lng: number; name: string }>
 }
 
-export default function RideHistoryAndTracking() {
+function RideHistoryAndTracking() {
+  const router = useRouter()
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth()
   const [isWalletConnected, setIsWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState("")
   const [activeTab, setActiveTab] = useState("history")
@@ -66,9 +78,40 @@ export default function RideHistoryAndTracking() {
   const [statusFilter, setStatusFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
   const [selectedRide, setSelectedRide] = useState<Ride | null>(null)
+  const [rides, setRides] = useState<Ride[]>([])
 
-  // Mock ride data
-  const rides: Ride[] = [
+  const apiService = new ApiService()
+  
+  // API state management for ride history
+  const {
+    loading: ridesLoading,
+    error: ridesError,
+    execute: loadRideHistory
+  } = useApiState()
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push('/auth/login')
+    }
+  }, [authLoading, isAuthenticated, router])
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <LoadingState variant="page" message="Authenticating..." />
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated || !user) {
+    return null
+  }
+
+  // Mock ride data as fallback
+  const mockRides: Ride[] = [
     {
       id: "R-2024-001",
       date: "2024-12-20",
@@ -167,11 +210,75 @@ export default function RideHistoryAndTracking() {
     },
   ]
 
-  // Check wallet connection on load
-  useEffect(() => {
-    checkWalletConnection().catch((error) => {
-      console.error("Failed to check wallet connection:", error)
+  // Fetch ride history from API
+  const fetchRideHistory = async () => {
+    if (!user?.id) return
+    
+    await loadRideHistory(async () => {
+      // Set auth token for API requests
+      const token = localStorage.getItem('accessToken')
+      if (token) {
+        apiService.setAuthToken(token)
+      }
+      
+      const response = await apiService.getUserRideHistory(user.id, {
+        page: 1,
+        limit: 50
+      })
+      
+      if (response.success) {
+        const apiRides = response.data.data
+      
+        // Transform API rides to local Ride interface
+        const transformedRides: Ride[] = apiRides.map((apiRide: ApiRide) => ({
+          id: apiRide.id,
+          date: new Date(apiRide.pickup_time).toISOString().split('T')[0],
+          time: new Date(apiRide.pickup_time).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }),
+          from: apiRide.pickup_location,
+          to: apiRide.destination,
+          distance: `${apiRide.distance} km`,
+          duration: `${apiRide.duration} min`,
+          cost: apiRide.fare,
+          status: apiRide.status as "completed" | "cancelled" | "in_progress" | "scheduled",
+          driver: apiRide.driver ? {
+            id: apiRide.driver.id,
+            name: `Anonymous Driver #${apiRide.driver.id.slice(-4).toUpperCase()}`,
+            rating: apiRide.driver.rating || 4.5,
+            avatar: "/placeholder.svg",
+            vehicle: apiRide.driver.vehicle_info || "Vehicle",
+            licensePlate: "***-***"
+          } : undefined,
+          rating: apiRide.passenger_rating,
+          paymentMethod: "Blockchain Wallet",
+          rideType: apiRide.ride_type || "Economy"
+        }))
+      
+        setRides(transformedRides)
+        return transformedRides
+      } else {
+        // Fallback to mock data on API failure
+        setRides(mockRides)
+        throw new Error('Failed to load ride history from API')
+      }
     })
+  }
+
+  // Check wallet connection and load ride history on mount
+  useEffect(() => {
+    const initializeData = async () => {
+      await Promise.all([
+        checkWalletConnection().catch((error) => {
+          console.error("Failed to check wallet connection:", error)
+        }),
+        fetchRideHistory()
+      ])
+    }
+    
+    initializeData()
   }, [])
 
   const checkWalletConnection = async () => {
@@ -286,6 +393,10 @@ export default function RideHistoryAndTracking() {
                   <User className="w-4 h-4 mr-2" />
                   Dashboard
                 </Link>
+              </Button>
+              <Button onClick={logout} size="sm" variant="outline" className="bg-transparent">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
               </Button>
             </div>
           </div>
@@ -408,9 +519,27 @@ export default function RideHistoryAndTracking() {
           </CardContent>
         </Card>
 
+        {/* Error Display */}
+        {ridesError && (
+          <ErrorDisplay
+            variant="alert"
+            title="Failed to Load Ride History"
+            message={ridesError.message || "Unable to fetch your ride history. Please try again."}
+            onRetry={fetchRideHistory}
+            showRetry
+          />
+        )}
+
         {/* Ride List */}
         <div className="space-y-4">
-          {filteredRides.length === 0 ? (
+          {/* Loading State */}
+           {ridesLoading ? (
+             <LoadingState
+               variant="card"
+               message="Loading your ride history..."
+               className="py-12"
+             />
+           ) : filteredRides.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -663,3 +792,15 @@ export default function RideHistoryAndTracking() {
     </div>
   )
 }
+
+export default withErrorBoundary(RideHistoryAndTracking, {
+  fallback: ({ error, resetError }) => (
+    <ErrorDisplay
+      variant="page"
+      title="Ride History System Error"
+      message={error?.message || "An unexpected error occurred in the ride history system."}
+      onRetry={resetError}
+      showRetry
+    />
+  )
+})
