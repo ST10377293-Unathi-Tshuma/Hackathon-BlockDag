@@ -10,9 +10,6 @@ import {
   ApiResponse,
   PaginatedResponse,
   DriverRegistrationRequest,
-  Driver,
-  DriverVerification,
-  VehicleInfo
 } from '../../shared/types.js';
 
 /**

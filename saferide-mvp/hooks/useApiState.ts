@@ -6,10 +6,12 @@ interface ApiState<T> {
   loading: boolean;
   error: string | null;
   lastUpdated: Date | null;
+  lastApiCall: (() => Promise<ApiResponse<T>>) | null;
 }
 
 interface UseApiStateReturn<T> extends ApiState<T> {
   execute: (apiCall: () => Promise<ApiResponse<T>>) => Promise<T | null>;
+  retry: () => Promise<T | null>;
   reset: () => void;
   setData: (data: T | null) => void;
   setError: (error: string | null) => void;
@@ -27,6 +29,7 @@ export function useApiState<T>(initialData: T | null = null): UseApiStateReturn<
     loading: false,
     error: null,
     lastUpdated: null,
+    lastApiCall: null,
   });
 
   const execute = useCallback(async (apiCall: () => Promise<ApiResponse<T>>): Promise<T | null> => {
@@ -41,6 +44,7 @@ export function useApiState<T>(initialData: T | null = null): UseApiStateReturn<
           loading: false,
           error: null,
           lastUpdated: new Date(),
+          lastApiCall: null,
         });
         return response.data;
       } else {
@@ -68,6 +72,7 @@ export function useApiState<T>(initialData: T | null = null): UseApiStateReturn<
       loading: false,
       error: null,
       lastUpdated: null,
+      lastApiCall: null,
     });
   }, [initialData]);
 
@@ -83,9 +88,48 @@ export function useApiState<T>(initialData: T | null = null): UseApiStateReturn<
     setState(prev => ({ ...prev, error: null }));
   }, []);
 
+  const retry = useCallback(async () => {
+    if (!state.lastApiCall) {
+      throw new Error('No previous API call to retry.');
+    }
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      const response = await state.lastApiCall();
+
+      if (response.success) {
+        setState({
+          data: response.data,
+          loading: false,
+          error: null,
+          lastUpdated: new Date(),
+          lastApiCall: null,
+        });
+        return response.data;
+      } else {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: response.error || 'An unexpected error occurred during retry',
+        }));
+        return null;
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Network error occurred during retry';
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: errorMessage,
+      }));
+      return null;
+    }
+  }, [state.lastApiCall]);
+
   return {
     ...state,
     execute,
+    retry,
     reset,
     setData,
     setError,

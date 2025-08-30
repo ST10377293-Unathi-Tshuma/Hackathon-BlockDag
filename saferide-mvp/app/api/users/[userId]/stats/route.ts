@@ -27,13 +27,11 @@ export async function GET(
     // Generate mock statistics for the user
     const stats = {
       totalRides: Math.floor(Math.random() * 50) + 10, // 10-60 rides
-      totalDistance: Math.floor(Math.random() * 1000) + 100, // 100-1100 km
       totalSpent: Math.floor(Math.random() * 500) + 50, // $50-550
-      averageRating: (Math.random() * 2 + 3).toFixed(1), // 3.0-5.0 rating
-      ridesThisMonth: Math.floor(Math.random() * 10) + 1, // 1-11 rides
-      favoriteDestination: 'Downtown Area',
+      rating: parseFloat((Math.random() * 2 + 3).toFixed(1)), // 3.0-5.0 rating
       carbonSaved: Math.floor(Math.random() * 100) + 20, // 20-120 kg CO2
-      memberSince: user.created_at || new Date().toISOString()
+      favoriteDestinations: ['Downtown Area', 'Airport', 'Shopping Mall'],
+      monthlyRides: Math.floor(Math.random() * 10) + 1 // 1-11 rides
     }
     
     return NextResponse.json({

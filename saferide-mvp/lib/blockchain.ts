@@ -1,26 +1,26 @@
 import { ethers } from "ethers"
 
-// BlockDAG network configuration
+// ✅ BlockDAG Primordial Testnet configuration
 export const BLOCKDAG_NETWORK = {
-  chainId: "0x1f90", // 8080 in hex (example BlockDAG chain ID)
-  chainName: "BlockDAG Network",
+  chainId: "0x413", // 1043 decimal → hex
+  chainName: "Primordial",
   nativeCurrency: {
-    name: "BDAG",
-    symbol: "BDAG",
+    name: "BlockDAG Test Token",
+    symbol: "BDT",
     decimals: 18,
   },
-  rpcUrls: ["https://rpc.blockdag.network"], // Mock RPC URL
-  blockExplorerUrls: ["https://explorer.blockdag.network"],
+  rpcUrls: ["https://rpc.primordial.bdagscan.com"],
+  blockExplorerUrls: ["https://primordial.bdagscan.com"],
 }
 
-// Smart contract addresses (mock addresses for demo)
+// ✅ Contract addresses (replace with your deployed addresses)
 export const CONTRACTS = {
   SAFERIDE_ESCROW: "0x1234567890123456789012345678901234567890",
   DRIVER_REGISTRY: "0x0987654321098765432109876543210987654321",
   RIDE_BOOKING: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
 }
 
-// Smart contract ABIs
+// ✅ ABIs
 export const ESCROW_ABI = [
   "function createEscrow(bytes32 rideId, address driver, uint256 amount) external payable",
   "function releasePayment(bytes32 rideId) external",
@@ -52,6 +52,7 @@ export const RIDE_BOOKING_ABI = [
   "event RideCancelled(bytes32 indexed rideId)",
 ]
 
+// ✅ Blockchain Service
 export class BlockchainService {
   private provider: ethers.BrowserProvider | null = null
   private signer: ethers.JsonRpcSigner | null = null
@@ -62,37 +63,35 @@ export class BlockchainService {
 
   async connectWallet(): Promise<{ address: string; balance: string }> {
     if (!this.isMetaMaskInstalled()) {
-      throw new Error("MetaMask is not installed. Please install MetaMask to use SafeRide.")
+      throw new Error("MetaMask/MaskWolf is not installed.")
     }
 
     try {
       // Request account access
+      if (!window.ethereum) {
+        throw new Error("Ethereum provider not found. Please install MetaMask or a compatible wallet.")
+      }
       await window.ethereum.request({ method: "eth_requestAccounts" })
 
-      // Initialize provider and signer
-      this.provider = new ethers.BrowserProvider(window.ethereum)
+      // Initialize provider + signer
+      this.provider = new ethers.BrowserProvider(window.ethereum as ethers.Eip1193Provider)
       this.signer = await this.provider.getSigner()
 
-      // Get address and balance
+      // Ensure network is correct
+      await this.switchToBlockDAG()
+
       const address = await this.signer.getAddress()
       const balance = await this.provider.getBalance(address)
-
-      // Switch to BlockDAG network if not already connected
-      await this.switchToBlockDAG()
 
       return {
         address,
         balance: ethers.formatEther(balance),
       }
     } catch (error: any) {
-      if (error.code === 4001) {
-        throw new Error("User rejected the connection request")
-      } else if (error.code === -32002) {
-        throw new Error("Connection request already pending. Please check MetaMask.")
-      } else {
-        console.error("Wallet connection failed:", error)
-        throw new Error(`Failed to connect wallet: ${error.message || "Unknown error"}`)
-      }
+      if (error.code === 4001) throw new Error("User rejected the connection request")
+      if (error.code === -32002) throw new Error("Connection request already pending. Please check wallet.")
+      console.error("Wallet connection failed:", error)
+      throw new Error(`Failed to connect wallet: ${error.message || "Unknown error"}`)
     }
   }
 
@@ -100,13 +99,11 @@ export class BlockchainService {
     if (!window.ethereum) return
 
     try {
-      // Try to switch to BlockDAG network
       await window.ethereum.request({
         method: "wallet_switchEthereumChain",
         params: [{ chainId: BLOCKDAG_NETWORK.chainId }],
       })
     } catch (switchError: any) {
-      // If network doesn't exist, add it
       if (switchError.code === 4902) {
         await window.ethereum.request({
           method: "wallet_addEthereumChain",
@@ -118,14 +115,12 @@ export class BlockchainService {
     }
   }
 
+  // --- Contract methods below remain unchanged ---
   async registerDriver(name: string, vehicleInfo: string, documentHash: string): Promise<string> {
     if (!this.signer) throw new Error("Wallet not connected")
-
     const contract = new ethers.Contract(CONTRACTS.DRIVER_REGISTRY, DRIVER_REGISTRY_ABI, this.signer)
-
     const tx = await contract.registerDriver(name, vehicleInfo, documentHash)
     await tx.wait()
-
     return tx.hash
   }
 
@@ -136,86 +131,57 @@ export class BlockchainService {
     fare: number,
   ): Promise<{ rideId: string; txHash: string }> {
     if (!this.signer) throw new Error("Wallet not connected")
-
     const contract = new ethers.Contract(CONTRACTS.RIDE_BOOKING, RIDE_BOOKING_ABI, this.signer)
-
     const fareWei = ethers.parseEther(fare.toString())
     const tx = await contract.createRide(pickup, destination, rideType, fareWei)
     const receipt = await tx.wait()
-
-    // Extract ride ID from event logs
     const rideCreatedEvent = receipt.logs.find(
       (log: any) => log.topics[0] === ethers.id("RideCreated(bytes32,address,string,string)"),
     )
-
     const rideId = rideCreatedEvent?.topics[1] || ethers.id(`${pickup}-${destination}-${Date.now()}`)
-
-    return {
-      rideId,
-      txHash: tx.hash,
-    }
+    return { rideId, txHash: tx.hash }
   }
 
   async createEscrow(rideId: string, driverAddress: string, amount: number): Promise<string> {
     if (!this.signer) throw new Error("Wallet not connected")
-
     const contract = new ethers.Contract(CONTRACTS.SAFERIDE_ESCROW, ESCROW_ABI, this.signer)
-
     const amountWei = ethers.parseEther(amount.toString())
     const rideIdBytes = ethers.id(rideId)
-
-    const tx = await contract.createEscrow(rideIdBytes, driverAddress, amountWei, {
-      value: amountWei,
-    })
-
+    const tx = await contract.createEscrow(rideIdBytes, driverAddress, amountWei, { value: amountWei })
     await tx.wait()
     return tx.hash
   }
 
   async releasePayment(rideId: string): Promise<string> {
     if (!this.signer) throw new Error("Wallet not connected")
-
     const contract = new ethers.Contract(CONTRACTS.SAFERIDE_ESCROW, ESCROW_ABI, this.signer)
-
     const rideIdBytes = ethers.id(rideId)
     const tx = await contract.releasePayment(rideIdBytes)
     await tx.wait()
-
     return tx.hash
   }
 
   async getTransactionStatus(txHash: string): Promise<"pending" | "confirmed" | "failed"> {
     if (!this.provider) throw new Error("Provider not initialized")
-
-    try {
-      const receipt = await this.provider.getTransactionReceipt(txHash)
-      if (!receipt) return "pending"
-      return receipt.status === 1 ? "confirmed" : "failed"
-    } catch (error) {
-      return "failed"
-    }
+    const receipt = await this.provider.getTransactionReceipt(txHash)
+    if (!receipt) return "pending"
+    return receipt.status === 1 ? "confirmed" : "failed"
   }
 
   async estimateGas(contractAddress: string, abi: string[], methodName: string, params: any[]): Promise<string> {
     if (!this.signer) throw new Error("Wallet not connected")
-
     const contract = new ethers.Contract(contractAddress, abi, this.signer)
     const gasEstimate = await contract[methodName].estimateGas(...params)
-
     return ethers.formatUnits(gasEstimate, "gwei")
   }
 
-  // Utility function to generate document hash for driver verification
   generateDocumentHash(files: File[]): Promise<string> {
     return new Promise((resolve) => {
       const fileNames = files.map((f) => f.name).join(",")
       const fileSizes = files.map((f) => f.size).join(",")
       const timestamp = Date.now().toString()
       const combined = `${fileNames}-${fileSizes}-${timestamp}`
-
-      // Simple hash simulation (in production, use proper hashing)
-      const hash = ethers.id(combined)
-      resolve(hash)
+      resolve(ethers.id(combined))
     })
   }
 
@@ -225,24 +191,16 @@ export class BlockchainService {
   }
 }
 
-// Global blockchain service instance
+// ✅ Global blockchain service instance
 export const blockchainService = new BlockchainService()
 
-// Utility functions
-export const formatAddress = (address: string): string => {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
+// ✅ Utils
+export const formatAddress = (address: string): string => `${address.slice(0, 6)}...${address.slice(-4)}`
+export const formatBalance = (balance: string): string => Number.parseFloat(balance).toFixed(4)
+export const generateRideId = (pickup: string, destination: string): string =>
+  `SR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-export const formatBalance = (balance: string): string => {
-  const num = Number.parseFloat(balance)
-  return num.toFixed(4)
-}
-
-export const generateRideId = (pickup: string, destination: string): string => {
-  return `SR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-}
-
-// Type definitions for blockchain interactions
+// ✅ Types
 export interface WalletInfo {
   address: string
   balance: string

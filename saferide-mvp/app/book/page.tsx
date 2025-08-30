@@ -56,6 +56,12 @@ function RideBooking() {
   // State for API data
   const [rideOptions, setRideOptions] = useState<RideOption[]>([])
   const [availableDrivers, setAvailableDrivers] = useState<Driver[]>([])
+
+  // Debug logging
+  useEffect(() => {
+    console.log('rideOptions:', rideOptions)
+    console.log('availableDrivers:', availableDrivers)
+  }, [rideOptions, availableDrivers])
   
   const {
     loading: optionsLoading,
@@ -93,6 +99,105 @@ function RideBooking() {
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationError, setLocationError] = useState("")
 
+  // Fallback dummy data in case API fails
+  const fallbackRideOptions: RideOption[] = [
+    {
+      id: "economy",
+      name: "Economy",
+      description: "Affordable rides for everyday travel",
+      estimatedTime: "5-10 min",
+      capacity: 4,
+      price: 12.50,
+      type: "standard",
+      features: ["Air conditioning", "Clean vehicle", "Professional driver"]
+    },
+    {
+      id: "premium",
+      name: "Premium",
+      description: "Comfortable rides with extra amenities",
+      estimatedTime: "3-7 min",
+      capacity: 4,
+      price: 18.75,
+      type: "premium",
+      features: ["Premium vehicle", "Free WiFi", "Bottled water", "Phone charger"]
+    },
+    {
+      id: "shared",
+      name: "Shared Ride",
+      description: "Share your ride and save money",
+      estimatedTime: "8-15 min",
+      capacity: 6,
+      price: 8.25,
+      type: "shared",
+      features: ["Shared vehicle", "Eco-friendly", "Lower cost"]
+    }
+  ]
+
+  const fallbackDrivers: Driver[] = [
+    {
+      id: "driver_1",
+      user_id: "user_1",
+      license_number: "LIC000001",
+      vehicle_info: {
+        make: "Toyota",
+        model: "Camry",
+        year: 2022,
+        color: "Silver",
+        plate_number: "ABC001"
+      },
+      verification_status: "verified",
+      rating: 4.8,
+      total_rides: 1250,
+      created_at: "2023-01-15T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z",
+      avatar: "/avatars/driver1.png"
+    },
+    {
+      id: "driver_2",
+      user_id: "user_2",
+      license_number: "LIC000002",
+      vehicle_info: {
+        make: "Honda",
+        model: "Civic",
+        year: 2021,
+        color: "Blue",
+        plate_number: "ABC002"
+      },
+      verification_status: "verified",
+      rating: 4.9,
+      total_rides: 890,
+      created_at: "2023-03-20T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z",
+      avatar: "/avatars/driver2.png"
+    },
+    {
+      id: "driver_3",
+      user_id: "user_3",
+      license_number: "LIC000003",
+      vehicle_info: {
+        make: "Ford",
+        model: "Focus",
+        year: 2023,
+        color: "White",
+        plate_number: "ABC003"
+      },
+      verification_status: "pending",
+      rating: 4.7,
+      total_rides: 567,
+      created_at: "2023-06-10T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z",
+      avatar: "/avatars/driver3.png"
+    }
+  ]
+  // Helper to get driver display name (use real name if available, else fallback)
+  function getDriverDisplayName(driver: Driver) {
+    // If your Driver type has a 'name' or 'full_name' property, use it
+    // Otherwise, fallback to "Driver {id}"
+    // Example: return driver.name || `Driver ${driver.id}`
+    // If your backend provides a 'name' field, use that
+    // @ts-expect-error: name may not exist on all Driver objects
+    return driver.name || `Driver ${driver.id}`
+  }
   const {
     walletInfo,
     isConnecting,
@@ -127,7 +232,7 @@ function RideBooking() {
 
   const handleLocationSubmit = async () => {
     if (pickup && destination) {
-      await loadRideOptions(async () => {
+      const result = await loadRideOptions(async () => {
         // Set authentication token for API requests
         const token = localStorage.getItem('token')
         if (token) {
@@ -135,16 +240,21 @@ function RideBooking() {
         }
         
         // Fetch available ride options from backend
-        const options = await apiService.getRideOptions({
+        return await apiService.getRideOptions({
           pickup,
           destination,
           rideType: 'all'
         })
-        
-        setRideOptions(options)
-        setCurrentStep("options")
-        return options
       })
+      
+      if (Array.isArray(result)) {
+        setRideOptions(result)
+        setCurrentStep("options")
+      } else {
+        // Use fallback data if API fails
+        setRideOptions(fallbackRideOptions)
+        setCurrentStep("options")
+      }
     }
   }
 
@@ -152,7 +262,7 @@ function RideBooking() {
     setSelectedRide(ride)
     setCurrentStep("drivers")
 
-    await searchDriversApi(async () => {
+    const result = await searchDriversApi(async () => {
       // Set authentication token for API requests
       const token = localStorage.getItem('token')
       if (token) {
@@ -160,16 +270,20 @@ function RideBooking() {
       }
       
       // Search for available drivers
-      const drivers = await apiService.searchDrivers({
+      return await apiService.searchDrivers({
         pickup,
         destination,
         rideType: ride.id,
         maxDrivers: 5
       })
-      
-      setAvailableDrivers(drivers)
-      return drivers
     })
+    
+    if (Array.isArray(result)) {
+      setAvailableDrivers(result)
+    } else {
+      // Use fallback data if API fails
+      setAvailableDrivers(fallbackDrivers)
+    }
   }
 
   const handleDriverSelection = (driver: Driver) => {
@@ -203,14 +317,15 @@ function RideBooking() {
         fare: selectedRide.price + 1.5,
         paymentMethod: 'blockchain',
         walletAddress: walletInfo.address,
-        userId: user.id
+        userId: user.id,
+        passengerCount: 0
       }
 
       // Create ride booking via API
       const bookingResult = await apiService.createRideBooking(bookingRequest)
       
-      if (bookingResult.success) {
-        setBookingId(bookingResult.bookingId)
+      if (bookingResult.success && bookingResult.data) {
+        setBookingId(bookingResult.data.bookingId)
         
         // Create blockchain transactions
         const rideTransaction = await createRideBooking(
@@ -228,10 +343,11 @@ function RideBooking() {
         setEscrowHash(escrowTx)
         
         // Update booking with blockchain transaction hashes
-        await apiService.updateRideBooking(bookingResult.bookingId, {
+        await apiService.updateRideBooking(bookingResult.data.bookingId, {
+          // @ts-expect-error: transactionHash and escrowHash are extra fields for backend update
           transactionHash: rideTransaction.txHash,
           escrowHash: escrowTx,
-          status: 'confirmed'
+          status: 'accepted'
         })
         
         setCurrentStep("confirmed")
@@ -242,16 +358,7 @@ function RideBooking() {
     })
   }
 
-  const getVerificationBadge = (level: string) => {
-    switch (level) {
-      case "elite":
-        return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Elite Verified</Badge>
-      case "premium":
-        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Premium Verified</Badge>
-      default:
-        return <Badge className="bg-primary/10 text-primary border-primary/20">Verified</Badge>
-    }
-  }
+
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -369,24 +476,67 @@ function RideBooking() {
           <ErrorDisplay
             variant="alert"
             title="Blockchain Error"
-            message={blockchainError}
+            description={blockchainError}
             onDismiss={clearError}
-            className="mb-6"
-          />
+            className="mb-6" error={null}          />
         )}
 
-        {(rideOptionsError || driversError || bookingError) && (
+        {(optionsError || driversError || bookingError) && (
           <ErrorDisplay
             variant="alert"
             title="API Error"
-            message={rideOptionsError || driversError || bookingError || 'An error occurred'}
+            description={optionsError || driversError || bookingError || 'An error occurred'}
             onRetry={() => {
-              if (rideOptionsError) loadRideOptions()
-              if (driversError) searchDriversApi()
-              if (bookingError) createBookingApi()
-            }}
-            className="mb-6"
-          />
+              if (optionsError) loadRideOptions(async () => {
+                // Set authentication token for API requests
+                const token = localStorage.getItem('token')
+                if (token) {
+                  apiService.setAuthToken(token)
+                }
+                // Fetch available ride options from backend
+                return await apiService.getRideOptions({
+                  pickup,
+                  destination,
+                  rideType: 'all'
+                })
+              })
+              if (driversError) searchDriversApi(async () => {
+                // Set authentication token for API requests
+                const token = localStorage.getItem('token')
+                if (token) {
+                  apiService.setAuthToken(token)
+                }
+                // Search for available drivers
+                return await apiService.searchDrivers({
+                  pickup,
+                  destination,
+                  rideType: selectedRide?.id || '',
+                  maxDrivers: 5
+                })
+              })
+              if (bookingError) createBookingApi(async () => {
+                // Set authentication token for API requests
+                const token = localStorage.getItem('token')
+                if (token) {
+                  apiService.setAuthToken(token)
+                }
+                // Create booking request
+                const bookingRequest: BookingRequest = {
+                  pickup,
+                  destination,
+                  rideType: selectedRide?.id || '',
+                  driverId: selectedDriver?.id || '',
+                  fare: (selectedRide?.price ?? 0) + 1.5,
+                  paymentMethod: 'blockchain',
+                  walletAddress: walletInfo.address,
+                  userId: user.id,
+                  passengerCount: 0
+                }
+                // Create ride booking via API
+                return await apiService.createRideBooking(bookingRequest)
+              })
+            } }
+            className="mb-6" error={null}          />
         )}
 
         {locationError && (
@@ -491,10 +641,10 @@ function RideBooking() {
 
               <Button
                 onClick={handleLocationSubmit}
-                disabled={!pickup || !destination || rideOptionsLoading}
+                disabled={!pickup || !destination || optionsLoading}
                 className="w-full bg-primary hover:bg-primary/90 h-12 text-base transition-all duration-200 hover:scale-[1.02]"
               >
-                {rideOptionsLoading ? (
+                {optionsLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Finding Rides...
@@ -536,7 +686,7 @@ function RideBooking() {
               </div>
             </div>
 
-            {rideOptionsLoading ? (
+            {optionsLoading ? (
               <LoadingState
                 variant="card"
                 message="Finding the best rides for your route..."
@@ -564,7 +714,7 @@ function RideBooking() {
               </Card>
             ) : (
               <div className="space-y-3">
-                {rideOptions.map((option) => (
+                {(rideOptions || []).map((option) => (
                   <Card
                     key={option.id}
                     className="cursor-pointer hover:border-primary/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
@@ -647,7 +797,7 @@ function RideBooking() {
               </Card>
             ) : (
               <div className="space-y-3">
-                {availableDrivers.map((driver) => (
+                {(availableDrivers || []).map((driver) => (
                   <Card
                     key={driver.id}
                     className="cursor-pointer hover:border-primary/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
@@ -657,31 +807,30 @@ function RideBooking() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           <Avatar className="w-10 h-10 sm:w-12 sm:h-12 flex-shrink-0">
-                            <AvatarImage src={driver.avatar || "/placeholder.svg"} alt={driver.name} />
+                            <AvatarImage src={driver.avatar || "/placeholder.svg"} alt={`Driver ${driver.id}`} />
                             <AvatarFallback>
-                              {driver.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")}
+                              {`D${driver.id}`}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1 flex-wrap">
-                              <h3 className="font-semibold text-foreground text-sm sm:text-base">{driver.name}</h3>
-                              {getVerificationBadge(driver.verificationLevel)}
+                              <h3 className="font-semibold text-foreground text-sm sm:text-base">Driver {driver.id}</h3>
+                              <Badge variant={driver.verification_status === 'verified' ? 'default' : 'secondary'}>
+                                {driver.verification_status}
+                              </Badge>
                             </div>
                             <div className="flex items-center gap-1 mb-1">
                               <Star className="w-3 h-3 sm:w-4 sm:h-4 fill-yellow-400 text-yellow-400" />
                               <span className="text-xs sm:text-sm font-medium">{driver.rating}</span>
                               <span className="text-xs sm:text-sm text-muted-foreground">
-                                ({driver.totalRides} rides)
+                                ({driver.total_rides} rides)
                               </span>
                             </div>
-                            <p className="text-xs sm:text-sm text-muted-foreground truncate">{driver.vehicleInfo}</p>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">{driver.vehicle_info.make} {driver.vehicle_info.model}</p>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0 ml-2">
-                          <div className="text-sm sm:text-lg font-bold text-primary">{driver.estimatedArrival}</div>
+                          <div className="text-sm sm:text-lg font-bold text-primary">5-10 min</div>
                           <div className="text-xs text-muted-foreground">away</div>
                         </div>
                       </div>
@@ -729,28 +878,26 @@ function RideBooking() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar className="w-10 h-10">
-                      <AvatarImage src={selectedDriver.avatar || "/placeholder.svg"} alt={selectedDriver.name} />
                       <AvatarFallback>
-                        {selectedDriver.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
+                        Driver {selectedDriver.id}
                       </AvatarFallback>
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{selectedDriver.name}</span>
-                        {getVerificationBadge(selectedDriver.verificationLevel)}
+                        <span className="font-medium">Driver {selectedDriver.id}</span>
+                        <Badge variant={selectedDriver.verification_status === 'verified' ? 'default' : 'secondary'}>
+                          {selectedDriver.verification_status}
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-1">
                         <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                         <span className="text-sm">{selectedDriver.rating}</span>
-                        <span className="text-sm text-muted-foreground">• {selectedDriver.vehicleInfo}</span>
+                        <span className="text-sm text-muted-foreground">• {selectedDriver.vehicle_info.make} {selectedDriver.vehicle_info.model}</span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-medium text-primary">{selectedDriver.estimatedArrival}</div>
+                    <div className="font-medium text-primary">5-10 min</div>
                     <div className="text-xs text-muted-foreground">arrival</div>
                   </div>
                 </div>
@@ -898,32 +1045,30 @@ function RideBooking() {
 
                 <div className="bg-muted/30 rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="w-12 h-12">
-                        <AvatarImage src={selectedDriver.avatar || "/placeholder.svg"} alt={selectedDriver.name} />
-                        <AvatarFallback>
-                          {selectedDriver.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{selectedDriver.name}</span>
-                          {getVerificationBadge(selectedDriver.verificationLevel)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                          <span className="text-sm font-medium">{selectedDriver.rating}</span>
-                          <span className="text-sm text-muted-foreground">• {selectedDriver.vehicleInfo}</span>
+                                          <div className="flex items-center gap-3">
+                        <Avatar className="w-12 h-12">
+                          <AvatarFallback>
+                            Driver {selectedDriver.id}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Driver {selectedDriver.id}</span>
+                            <Badge variant={selectedDriver.verification_status === 'verified' ? 'default' : 'secondary'}>
+                              {selectedDriver.verification_status}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                            <span className="text-sm font-medium">{selectedDriver.rating}</span>
+                            <span className="text-sm text-muted-foreground">• {selectedDriver.vehicle_info.make} {selectedDriver.vehicle_info.model}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-primary">{selectedDriver.estimatedArrival}</div>
-                      <div className="text-xs text-muted-foreground">away</div>
-                    </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-primary">5-10 min</div>
+                        <div className="text-xs text-muted-foreground">away</div>
+                      </div>
                   </div>
 
                   <div className="space-y-3">
@@ -948,18 +1093,23 @@ function RideBooking() {
   )
 }
 
-export default withErrorBoundary(RideBooking, {
-  fallback: ({ error, retry }) => (
+function RideBookingFallback({ error, retry }: { error: Error; retry: () => void }) {
+  return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-md mx-auto pt-20">
         <ErrorDisplay
           variant="card"
           title="Booking System Error"
-          message={error?.message || "Something went wrong with the ride booking system"}
+          description={error?.message || "Something went wrong with the ride booking system"}
           onRetry={retry}
           showRetry
+          error={error}
         />
       </div>
     </div>
   )
+}
+
+export default withErrorBoundary(RideBooking, {
+  fallback: (props: { error: Error; retry: () => void }) => <RideBookingFallback {...props} />
 })

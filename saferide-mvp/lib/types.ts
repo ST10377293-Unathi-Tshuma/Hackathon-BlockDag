@@ -16,6 +16,18 @@ export interface User {
   updated_at: string;
 }
 
+export interface ApiUser {
+  id: string;
+  email: string;
+  full_name: string;
+  phone?: string;
+  user_type: 'passenger' | 'driver';
+  is_verified: boolean;
+  profile_picture?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserProfile {
   id: string;
   user_id: string;
@@ -30,6 +42,7 @@ export interface UserProfile {
 
 // Driver Types
 export interface Driver {
+  avatar: string;
   id: string;
   user_id: string;
   license_number: string;
@@ -41,23 +54,12 @@ export interface Driver {
   updated_at: string;
 }
 
-export interface VehicleInfo {
+interface VehicleInfo {
   make: string;
   model: string;
   year: number;
   color: string;
-  license_plate: string;
-}
-
-export interface DriverVerification {
-  id: string;
-  driver_id: string;
-  document_type: string;
-  document_url: string;
-  verification_status: 'pending' | 'verified' | 'rejected';
-  verified_at?: string;
-  verified_by?: string;
-  created_at: string;
+  plate_number: string;
 }
 
 // Ride Types
@@ -128,11 +130,12 @@ export interface EscrowTransaction {
 
 // Statistics Types
 export interface UserStats {
-  total_rides: number;
-  total_spent: number;
-  average_rating: number;
-  favorite_destinations: string[];
-  monthly_rides: number;
+  totalRides: number;
+  totalSpent: number;
+  rating: number;
+  carbonSaved: number;
+  favoriteDestinations: string[];
+  monthlyRides: number;
 }
 
 export interface DriverStats {
@@ -183,4 +186,28 @@ export interface DriverLocationUpdate {
   heading: number;
   speed: number;
   timestamp: string;
+}
+
+export interface RideOption {
+  id: string;
+  name: string;
+  description: string;
+  estimatedTime: string;
+  capacity: number;
+  price: number;
+  type: 'standard' | 'premium' | 'shared';
+  features: string[];
+}
+
+export interface BookingRequest {
+  pickup: string;
+  destination: string;
+  rideType: string;
+  driverId: string;
+  passengerCount: number;
+  scheduledTime?: string;
+  fare: number;
+  paymentMethod: string;
+  walletAddress: string;
+  userId: string;
 }

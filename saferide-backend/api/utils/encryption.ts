@@ -21,7 +21,7 @@ export class EncryptionService {
   static encrypt(text: string): string {
     try {
       const iv = crypto.randomBytes(IV_LENGTH);
-      const cipher = crypto.createCipher('aes-256-cbc', this.key);
+      const cipher = crypto.createCipheriv('aes-256-cbc', this.key, iv);
       cipher.setAutoPadding(true);
       
       let encrypted = cipher.update(text, 'utf8', 'hex');
@@ -43,7 +43,7 @@ export class EncryptionService {
       const iv = Buffer.from(textParts.shift()!, 'hex');
       const encrypted = textParts.join(':');
       
-      const decipher = crypto.createDecipher('aes-256-cbc', this.key);
+      const decipher = crypto.createDecipheriv('aes-256-cbc', this.key, iv);
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
       

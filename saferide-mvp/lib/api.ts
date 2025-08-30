@@ -13,7 +13,9 @@ import {
   DriverStats,
   PaginationParams,
   PaginatedResponse,
-  Location
+  Location,
+  RideOption,
+  BookingRequest
 } from './types';
 
 class ApiService {
@@ -195,6 +197,37 @@ class ApiService {
 
   async getNearbyDrivers(location: Location, radius: number = 5): Promise<ApiResponse<Driver[]>> {
     return this.request<Driver[]>(`/api/drivers/nearby?lat=${location.latitude}&lng=${location.longitude}&radius=${radius}`);
+  }
+
+  async getRideOptions(params: {
+    pickup: string;
+    destination: string;
+    rideType: string;
+  }): Promise<ApiResponse<RideOption[]>> {
+    return this.request<RideOption[]>(`/api/rides/options?pickup=${encodeURIComponent(params.pickup)}&destination=${encodeURIComponent(params.destination)}&type=${params.rideType}`);
+  }
+
+  async searchDrivers(params: {
+    pickup: string;
+    destination: string;
+    rideType: string;
+    maxDrivers: number;
+  }): Promise<ApiResponse<Driver[]>> {
+    return this.request<Driver[]>(`/api/drivers/search?pickup=${encodeURIComponent(params.pickup)}&destination=${encodeURIComponent(params.destination)}&type=${params.rideType}&max=${params.maxDrivers}`);
+  }
+
+  async createRideBooking(bookingRequest: BookingRequest): Promise<ApiResponse<{ bookingId: string }>> {
+    return this.request<{ bookingId: string }>('/api/rides/book', {
+      method: 'POST',
+      body: JSON.stringify(bookingRequest),
+    });
+  }
+
+  async updateRideBooking(rideId: string, updates: Partial<Ride>): Promise<ApiResponse<Ride>> {
+    return this.request<Ride>(`/api/rides/${rideId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
   }
 
   // Ride Booking APIs

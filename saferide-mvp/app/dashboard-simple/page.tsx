@@ -63,7 +63,7 @@ interface ApiUser {
   updated_at: string;
 }
 
-export default function UserDashboard() {
+export default function SimpleDashboard() {
   const [user, setUser] = useState<ApiUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [userStats, setUserStats] = useState<UserStats | null>(null)
