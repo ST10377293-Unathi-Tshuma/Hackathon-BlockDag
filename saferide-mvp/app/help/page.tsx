@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useMemo, useCallback, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -31,6 +31,8 @@ import {
   User,
 } from "lucide-react"
 import Link from "next/link"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { useDebouncedSearch } from "@/hooks/useDebounce"
 
 interface FAQ {
   id: string
@@ -47,8 +49,8 @@ interface HelpArticle {
   readTime: string
 }
 
-export default function HelpAndSupport() {
-  const [searchQuery, setSearchQuery] = useState("")
+const HelpAndSupport = memo(() => {
+  const { searchValue, debouncedValue: debouncedSearchQuery, setSearchValue, isSearching } = useDebouncedSearch()
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [contactForm, setContactForm] = useState({
     name: "",
@@ -59,6 +61,7 @@ export default function HelpAndSupport() {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const faqs: FAQ[] = [
     {
@@ -174,39 +177,48 @@ export default function HelpAndSupport() {
     { id: "privacy", name: "Privacy", icon: Users },
   ]
 
-  const filteredFAQs = faqs.filter((faq) => {
-    const matchesSearch =
-      faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === "all" || faq.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  const filteredFAQs = useMemo(() => {
+    return faqs.filter((faq) => {
+      const matchesSearch =
+        faq.question.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        faq.answer.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      const matchesCategory = selectedCategory === "all" || faq.category === selectedCategory
+      return matchesSearch && matchesCategory
+    })
+  }, [debouncedSearchQuery, selectedCategory])
 
-  const filteredArticles = helpArticles.filter((article) => {
-    const matchesSearch =
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.description.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = selectedCategory === "all" || article.category === selectedCategory
-    return matchesSearch && matchesCategory
-  })
+  const filteredArticles = useMemo(() => {
+    return helpArticles.filter((article) => {
+      const matchesSearch =
+        article.title.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        article.description.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+      const matchesCategory = selectedCategory === "all" || article.category === selectedCategory
+      return matchesSearch && matchesCategory
+    })
+  }, [debouncedSearchQuery, selectedCategory])
 
-  const handleContactSubmit = async (e: React.FormEvent) => {
+  const handleContactSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
-    // Simulate form submission
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    setIsSubmitted(true)
-    setIsSubmitting(false)
-    setContactForm({
-      name: "",
-      email: "",
-      subject: "",
-      message: "",
-      category: "general",
-    })
-  }
+    try {
+      // Simulate form submission
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      
+      setIsSubmitted(true)
+      setContactForm({
+        name: "",
+        email: "",
+        subject: "",
+        message: "",
+        category: "general",
+      })
+    } catch (error) {
+      console.error('Contact form submission error:', error)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-background">
@@ -252,10 +264,15 @@ export default function HelpAndSupport() {
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
               <Input
                 placeholder="Search for help articles, FAQs, or topics..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 h-12 text-base"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                className="pl-12 pr-12 h-12 text-base"
               />
+              {isSearching && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -714,4 +731,22 @@ export default function HelpAndSupport() {
       </div>
     </div>
   )
+})
+
+HelpAndSupport.displayName = 'HelpAndSupport'
+
+// Wrapper component with ErrorBoundary
+const HelpAndSupportWithErrorBoundary = () => {
+  return (
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Help Page Error:', error, errorInfo)
+        // In a real app, you might want to send this to an error reporting service
+      }}
+    >
+      <HelpAndSupport />
+    </ErrorBoundary>
+  )
 }
+
+export default HelpAndSupportWithErrorBoundary

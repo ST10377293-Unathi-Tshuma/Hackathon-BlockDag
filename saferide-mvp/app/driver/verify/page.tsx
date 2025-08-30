@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -22,9 +23,12 @@ import {
   Camera,
   Wallet,
   BarChart3,
+  LogOut,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import { useBlockchain } from "@/hooks/use-blockchain"
+import { useAuth } from "@/lib/auth-context"
 
 interface FormData {
   // Personal Information
@@ -84,11 +88,42 @@ const initialFormData: FormData = {
 }
 
 export default function DriverVerification() {
+  const router = useRouter()
+  const { user, logout, isLoading } = useAuth()
   const [currentStep, setCurrentStep] = useState(1)
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isVerificationComplete, setIsVerificationComplete] = useState(false)
+  const [isAuthChecking, setIsAuthChecking] = useState(true)
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading) {
+      if (!user) {
+        router.push('/login')
+        return
+      }
+      setIsAuthChecking(false)
+    }
+  }, [user, isLoading, router])
+
+  // Show loading spinner while checking authentication
+  if (isLoading || isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex items-center gap-2">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated
+  if (!user) {
+    return null
+  }
 
   const {
     walletInfo,
@@ -272,6 +307,15 @@ export default function DriverVerification() {
                     <span className="sm:hidden">{walletInfo.address.slice(0, 4)}...</span>
                   </Badge>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={logout}
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </Button>
               </div>
             </div>
           </div>
@@ -375,6 +419,15 @@ export default function DriverVerification() {
                   {isConnecting ? "Connecting..." : "Connect Wallet"}
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={logout}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                Logout
+              </Button>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useMemo, useCallback, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import ErrorBoundary from "@/components/ErrorBoundary"
+import { useDebouncedSearch } from "@/hooks/useDebounce"
 import {
   Shield,
   Users,
@@ -70,12 +73,28 @@ interface Ride {
   duration: string
 }
 
-export default function AdminPanel() {
+const AdminPanel = memo(() => {
   const [selectedTab, setSelectedTab] = useState("overview")
-  const [searchQuery, setSearchQuery] = useState("")
   const [userFilter, setUserFilter] = useState("all")
   const [rideFilter, setRideFilter] = useState("all")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  
+  // Debounced search for users and rides
+  const {
+    searchValue: userSearchValue,
+    debouncedValue: debouncedUserSearch,
+    setSearchValue: setUserSearchValue,
+    isSearching: isUserSearching
+  } = useDebouncedSearch('', 300)
+  
+  const {
+    searchValue: rideSearchValue,
+    debouncedValue: debouncedRideSearch,
+    setSearchValue: setRideSearchValue,
+    isSearching: isRideSearching
+  } = useDebouncedSearch('', 300)
 
   // Mock data
   const metrics: MetricCard[] = [
@@ -215,12 +234,20 @@ export default function AdminPanel() {
     activeConnections: 1247,
   }
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
-    // Simulate data refresh
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setIsRefreshing(false)
-  }
+  const handleRefresh = useCallback(async () => {
+    try {
+      setIsRefreshing(true)
+      setError(null)
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      // In a real app, you would fetch fresh data here
+      console.log('Data refreshed')
+    } catch (err) {
+      setError('Failed to refresh data. Please try again.')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -256,22 +283,91 @@ export default function AdminPanel() {
     }
   }
 
-  const filteredUsers = recentUsers.filter((user) => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = userFilter === "all" || user.type === userFilter || user.status === userFilter
-    return matchesSearch && matchesFilter
-  })
+  const filteredUsers = useMemo(() => {
+    return recentUsers.filter((user) => {
+      const matchesSearch =
+        user.name.toLowerCase().includes(debouncedUserSearch.toLowerCase()) ||
+        user.email.toLowerCase().includes(debouncedUserSearch.toLowerCase())
+      const matchesFilter = userFilter === "all" || user.type === userFilter || user.status === userFilter
+      return matchesSearch && matchesFilter
+    })
+  }, [debouncedUserSearch, userFilter])
 
-  const filteredRides = recentRides.filter((ride) => {
-    const matchesSearch =
-      ride.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.to.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesFilter = rideFilter === "all" || ride.status === rideFilter
-    return matchesSearch && matchesFilter
-  })
+  const filteredRides = useMemo(() => {
+    return recentRides.filter((ride) => {
+      const matchesSearch =
+        ride.id.toLowerCase().includes(debouncedRideSearch.toLowerCase()) ||
+        ride.from.toLowerCase().includes(debouncedRideSearch.toLowerCase()) ||
+        ride.to.toLowerCase().includes(debouncedRideSearch.toLowerCase())
+      const matchesFilter = rideFilter === "all" || ride.status === rideFilter
+      return matchesSearch && matchesFilter
+    })
+  }, [debouncedRideSearch, rideFilter])
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto p-6">
+          {/* Header Skeleton */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="space-y-2">
+              <div className="h-8 w-48 bg-muted animate-pulse rounded"></div>
+              <div className="h-4 w-64 bg-muted animate-pulse rounded"></div>
+            </div>
+            <div className="flex gap-2">
+              <div className="h-10 w-24 bg-muted animate-pulse rounded"></div>
+              <div className="h-10 w-10 bg-muted animate-pulse rounded"></div>
+            </div>
+          </div>
+          
+          {/* Metrics Cards Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="border border-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="h-4 w-20 bg-muted animate-pulse rounded"></div>
+                  <div className="h-4 w-4 bg-muted animate-pulse rounded"></div>
+                </div>
+                <div className="h-8 w-16 bg-muted animate-pulse rounded mb-2"></div>
+                <div className="h-3 w-24 bg-muted animate-pulse rounded"></div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Tabs Skeleton */}
+          <div className="border border-border rounded-lg">
+            <div className="flex border-b border-border">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-12 w-24 bg-muted animate-pulse m-1 rounded"></div>
+              ))}
+            </div>
+            <div className="p-6 space-y-4">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-16 bg-muted animate-pulse rounded"></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertCircle className="w-8 h-8 text-destructive mx-auto mb-4" />
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={handleRefresh} variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -507,14 +603,19 @@ export default function AdminPanel() {
                   </div>
                   <div className="flex gap-2">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                      <Input
-                        placeholder="Search users..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 w-64"
-                      />
-                    </div>
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                        <Input
+                          placeholder="Search users..."
+                          value={userSearchValue}
+                          onChange={(e) => setUserSearchValue(e.target.value)}
+                          className="pl-10 w-64"
+                        />
+                        {isUserSearching && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          </div>
+                        )}
+                      </div>
                     <select
                       value={userFilter}
                       onChange={(e) => setUserFilter(e.target.value)}
@@ -592,14 +693,19 @@ export default function AdminPanel() {
                   </div>
                   <div className="flex gap-2">
                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                      <Input
-                        placeholder="Search rides..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 w-64"
-                      />
-                    </div>
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                        <Input
+                          placeholder="Search rides..."
+                          value={rideSearchValue}
+                          onChange={(e) => setRideSearchValue(e.target.value)}
+                          className="pl-10 w-64"
+                        />
+                        {isRideSearching && (
+                          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                          </div>
+                        )}
+                      </div>
                     <select
                       value={rideFilter}
                       onChange={(e) => setRideFilter(e.target.value)}
@@ -889,4 +995,22 @@ export default function AdminPanel() {
       </div>
     </div>
   )
+})
+
+AdminPanel.displayName = 'AdminPanel'
+
+// Wrapper component with ErrorBoundary
+const AdminPanelWithErrorBoundary = () => {
+  return (
+    <ErrorBoundary
+      onError={(error, errorInfo) => {
+        console.error('Admin Panel Error:', error, errorInfo)
+        // In a real app, you might want to send this to an error reporting service
+      }}
+    >
+      <AdminPanel />
+    </ErrorBoundary>
+  )
 }
+
+export default AdminPanelWithErrorBoundary

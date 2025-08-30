@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -27,96 +28,56 @@ import {
   ExternalLink,
   Crosshair,
   Loader2,
+  Phone,
+  MessageCircle,
+  Home,
+  LogOut,
 } from "lucide-react"
 import Link from "next/link"
 import { useBlockchain } from "@/hooks/use-blockchain"
 import { formatAddress } from "@/lib/blockchain"
+import { ApiService } from "@/lib/api"
+import { RideOption, Driver, BookingRequest } from "@/lib/types"
+import { useAuth } from "@/lib/auth-context"
+import { useApiState } from "@/hooks/useApiState"
+import ErrorDisplay from "@/components/ErrorDisplay"
+import LoadingState from "@/components/LoadingState"
+import { withErrorBoundary } from "@/components/ErrorBoundary"
 
-interface RideOption {
-  id: string
-  name: string
-  description: string
-  icon: any
-  price: number
-  estimatedTime: string
-  capacity: number
-}
+// Types are now imported from @/lib/types
 
-interface Driver {
-  id: string
-  name: string
-  rating: number
-  totalRides: number
-  vehicleInfo: string
-  estimatedArrival: string
-  avatar: string
-  verificationLevel: "basic" | "premium" | "elite"
-}
+// API service instance
+const apiService = new ApiService()
 
-const rideOptions: RideOption[] = [
-  {
-    id: "economy",
-    name: "SafeRide Economy",
-    description: "Affordable rides with verified drivers",
-    icon: Car,
-    price: 12.5,
-    estimatedTime: "5-8 min",
-    capacity: 4,
-  },
-  {
-    id: "premium",
-    name: "SafeRide Premium",
-    description: "Comfortable rides with top-rated drivers",
-    icon: Crown,
-    price: 18.75,
-    estimatedTime: "3-6 min",
-    capacity: 4,
-  },
-  {
-    id: "express",
-    name: "SafeRide Express",
-    description: "Fastest pickup with priority matching",
-    icon: Zap,
-    price: 15.25,
-    estimatedTime: "2-4 min",
-    capacity: 4,
-  },
-]
-
-const mockDrivers: Driver[] = [
-  {
-    id: "1",
-    name: "Driver Alpha",
-    rating: 4.9,
-    totalRides: 1247,
-    vehicleInfo: "Silver Toyota Camry",
-    estimatedArrival: "3 min",
-    avatar: "/professional-driver-avatar.png",
-    verificationLevel: "elite",
-  },
-  {
-    id: "2",
-    name: "Driver Beta",
-    rating: 4.8,
-    totalRides: 892,
-    vehicleInfo: "Black Honda Accord",
-    estimatedArrival: "5 min",
-    avatar: "/friendly-driver-avatar.png",
-    verificationLevel: "premium",
-  },
-  {
-    id: "3",
-    name: "Driver Gamma",
-    rating: 4.7,
-    totalRides: 634,
-    vehicleInfo: "Blue Nissan Altima",
-    estimatedArrival: "7 min",
-    avatar: "/reliable-driver-avatar.png",
-    verificationLevel: "basic",
-  },
-]
-
-export default function RideBooking() {
+function RideBooking() {
+  const router = useRouter()
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
+  
+  // State for API data
+  const [rideOptions, setRideOptions] = useState<RideOption[]>([])
+  const [availableDrivers, setAvailableDrivers] = useState<Driver[]>([])
+  
+  const {
+    loading: optionsLoading,
+    error: optionsError,
+    execute: loadRideOptions,
+    retry: retryOptions
+  } = useApiState()
+  
+  const {
+    loading: driversLoading,
+    error: driversError,
+    execute: searchDriversApi,
+    retry: retryDrivers
+  } = useApiState()
+  
+  const {
+    loading: bookingLoading,
+    error: bookingError,
+    execute: createBookingApi,
+    retry: retryBooking
+  } = useApiState()
+  
   const [currentStep, setCurrentStep] = useState<"location" | "options" | "drivers" | "booking" | "confirmed">(
     "location",
   )
@@ -143,21 +104,72 @@ export default function RideBooking() {
     clearError,
   } = useBlockchain()
 
-  const handleLocationSubmit = () => {
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/auth/login')
+    }
+  }, [isAuthenticated, isLoading, router])
+
+  // Show loading spinner while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated || !user) {
+    return null
+  }
+
+  const handleLocationSubmit = async () => {
     if (pickup && destination) {
-      setCurrentStep("options")
+      await loadRideOptions(async () => {
+        // Set authentication token for API requests
+        const token = localStorage.getItem('token')
+        if (token) {
+          apiService.setAuthToken(token)
+        }
+        
+        // Fetch available ride options from backend
+        const options = await apiService.getRideOptions({
+          pickup,
+          destination,
+          rideType: 'all'
+        })
+        
+        setRideOptions(options)
+        setCurrentStep("options")
+        return options
+      })
     }
   }
 
-  const handleRideSelection = (ride: RideOption) => {
+  const handleRideSelection = async (ride: RideOption) => {
     setSelectedRide(ride)
     setCurrentStep("drivers")
-    setIsSearching(true)
 
-    // Simulate driver search
-    setTimeout(() => {
-      setIsSearching(false)
-    }, 2000)
+    await searchDriversApi(async () => {
+      // Set authentication token for API requests
+      const token = localStorage.getItem('token')
+      if (token) {
+        apiService.setAuthToken(token)
+      }
+      
+      // Search for available drivers
+      const drivers = await apiService.searchDrivers({
+        pickup,
+        destination,
+        rideType: ride.id,
+        maxDrivers: 5
+      })
+      
+      setAvailableDrivers(drivers)
+      return drivers
+    })
   }
 
   const handleDriverSelection = (driver: Driver) => {
@@ -173,31 +185,61 @@ export default function RideBooking() {
 
     if (!selectedRide || !selectedDriver) return
 
-    setIsBooking(true)
     clearError()
 
-    try {
-      const rideTransaction = await createRideBooking(
+    await createBookingApi(async () => {
+      // Set authentication token for API requests
+      const token = localStorage.getItem('token')
+      if (token) {
+        apiService.setAuthToken(token)
+      }
+      
+      // Create booking request
+      const bookingRequest: BookingRequest = {
         pickup,
         destination,
-        selectedRide.id === "economy" ? 0 : selectedRide.id === "premium" ? 1 : 2,
-        selectedRide.price + 1.5,
-      )
+        rideType: selectedRide.id,
+        driverId: selectedDriver.id,
+        fare: selectedRide.price + 1.5,
+        paymentMethod: 'blockchain',
+        walletAddress: walletInfo.address,
+        userId: user.id
+      }
 
-      setBookingId(rideTransaction.rideId)
-      setTransactionHash(rideTransaction.txHash)
+      // Create ride booking via API
+      const bookingResult = await apiService.createRideBooking(bookingRequest)
+      
+      if (bookingResult.success) {
+        setBookingId(bookingResult.bookingId)
+        
+        // Create blockchain transactions
+        const rideTransaction = await createRideBooking(
+          pickup,
+          destination,
+          selectedRide.id === "economy" ? 0 : selectedRide.id === "premium" ? 1 : 2,
+          selectedRide.price + 1.5,
+        )
 
-      const mockDriverAddress = "0x742d35Cc6634C0532925a3b8D4C9db96590c6C87" // Mock driver wallet
-      const escrowTx = await createEscrowPayment(rideTransaction.rideId, mockDriverAddress, selectedRide.price + 1.5)
+        setTransactionHash(rideTransaction.txHash)
 
-      setEscrowHash(escrowTx)
-      setCurrentStep("confirmed")
-    } catch (error: any) {
-      console.error("Booking failed:", error)
-      alert(`Booking failed: ${error.message}`)
-    } finally {
-      setIsBooking(false)
-    }
+        const mockDriverAddress = "0x742d35Cc6634C0532925a3b8D4C9db96590c6C87" // Mock driver wallet
+        const escrowTx = await createEscrowPayment(rideTransaction.rideId, mockDriverAddress, selectedRide.price + 1.5)
+
+        setEscrowHash(escrowTx)
+        
+        // Update booking with blockchain transaction hashes
+        await apiService.updateRideBooking(bookingResult.bookingId, {
+          transactionHash: rideTransaction.txHash,
+          escrowHash: escrowTx,
+          status: 'confirmed'
+        })
+        
+        setCurrentStep("confirmed")
+        return bookingResult
+      } else {
+        throw new Error("Ride booking failed")
+      }
+    })
   }
 
   const getVerificationBadge = (level: string) => {
@@ -313,6 +355,10 @@ export default function RideBooking() {
                   <span className="sm:hidden">{isConnecting ? "..." : "Connect"}</span>
                 </Button>
               )}
+              <Button onClick={logout} size="sm" variant="outline" className="bg-transparent">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
             </div>
           </div>
         </div>
@@ -320,20 +366,27 @@ export default function RideBooking() {
 
       <div className="container mx-auto px-4 py-6 sm:py-8 max-w-2xl">
         {blockchainError && (
-          <Alert className="mb-6 border-destructive/50 text-destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              {blockchainError}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearError}
-                className="ml-2 h-auto p-0 text-destructive hover:text-destructive/80"
-              >
-                Dismiss
-              </Button>
-            </AlertDescription>
-          </Alert>
+          <ErrorDisplay
+            variant="alert"
+            title="Blockchain Error"
+            message={blockchainError}
+            onDismiss={clearError}
+            className="mb-6"
+          />
+        )}
+
+        {(rideOptionsError || driversError || bookingError) && (
+          <ErrorDisplay
+            variant="alert"
+            title="API Error"
+            message={rideOptionsError || driversError || bookingError || 'An error occurred'}
+            onRetry={() => {
+              if (rideOptionsError) loadRideOptions()
+              if (driversError) searchDriversApi()
+              if (bookingError) createBookingApi()
+            }}
+            className="mb-6"
+          />
         )}
 
         {locationError && (
@@ -438,12 +491,23 @@ export default function RideBooking() {
 
               <Button
                 onClick={handleLocationSubmit}
-                disabled={!pickup || !destination}
+                disabled={!pickup || !destination || rideOptionsLoading}
                 className="w-full bg-primary hover:bg-primary/90 h-12 text-base transition-all duration-200 hover:scale-[1.02]"
               >
-                <Search className="w-4 h-4 mr-2" />
-                Find Rides
+                {rideOptionsLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Finding Rides...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-4 h-4 mr-2" />
+                    Find Rides
+                  </>
+                )}
               </Button>
+
+
 
               {/* Mock Map Placeholder */}
               <div className="h-40 sm:h-48 bg-muted/30 rounded-lg flex items-center justify-center border border-border">
@@ -472,43 +536,71 @@ export default function RideBooking() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              {rideOptions.map((option) => (
-                <Card
-                  key={option.id}
-                  className="cursor-pointer hover:border-primary/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
-                  onClick={() => handleRideSelection(option)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <option.icon className="w-5 h-5 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-foreground text-sm sm:text-base">{option.name}</h3>
-                          <p className="text-xs sm:text-sm text-muted-foreground">{option.description}</p>
-                          <div className="flex items-center gap-3 sm:gap-4 mt-1">
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {option.estimatedTime}
-                            </span>
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Users className="w-3 h-3" />
-                              {option.capacity} seats
-                            </span>
+            {rideOptionsLoading ? (
+              <LoadingState
+                variant="card"
+                message="Finding the best rides for your route..."
+                className="shadow-lg"
+              />
+            ) : rideOptions.length === 0 ? (
+              <Card className="shadow-lg">
+                <CardContent className="p-6 sm:p-8 text-center">
+                  <div className="w-12 h-12 bg-muted/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2 text-sm sm:text-base">No Rides Available</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-4">
+                    No ride options found for this route. Please try again.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleLocationSubmit}
+                    className="bg-transparent"
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Search Again
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {rideOptions.map((option) => (
+                  <Card
+                    key={option.id}
+                    className="cursor-pointer hover:border-primary/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+                    onClick={() => handleRideSelection(option)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Users className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-foreground text-sm sm:text-base">{option.name}</h3>
+                            <p className="text-xs sm:text-sm text-muted-foreground">{option.description}</p>
+                            <div className="flex items-center gap-3 sm:gap-4 mt-1">
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {option.estimatedTime}
+                              </span>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {option.capacity} seats
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <div className="text-base sm:text-lg font-bold text-foreground">${option.price}</div>
+                          <div className="text-xs text-muted-foreground">Estimated</div>
+                        </div>
                       </div>
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <div className="text-base sm:text-lg font-bold text-foreground">${option.price}</div>
-                        <div className="text-xs text-muted-foreground">Estimated</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -527,19 +619,35 @@ export default function RideBooking() {
               </div>
             </div>
 
-            {isSearching ? (
+            {driversLoading ? (
+              <LoadingState
+                variant="card"
+                message="Matching you with verified drivers in your area..."
+                className="shadow-lg"
+              />
+            ) : availableDrivers.length === 0 ? (
               <Card className="shadow-lg">
                 <CardContent className="p-6 sm:p-8 text-center">
-                  <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-                  <h3 className="font-semibold text-foreground mb-2 text-sm sm:text-base">Finding Nearby Drivers</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground">
-                    Matching you with verified drivers in your area...
+                  <div className="w-12 h-12 bg-muted/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Users className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-semibold text-foreground mb-2 text-sm sm:text-base">No Drivers Available</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground mb-4">
+                    No drivers found in your area. Please try again later.
                   </p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => handleRideSelection(selectedRide!)}
+                    className="bg-transparent"
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Search Again
+                  </Button>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3">
-                {mockDrivers.map((driver) => (
+                {availableDrivers.map((driver) => (
                   <Card
                     key={driver.id}
                     className="cursor-pointer hover:border-primary/50 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
@@ -713,11 +821,11 @@ export default function RideBooking() {
 
                 <Button
                   onClick={handleBookingConfirm}
-                  disabled={isBooking || !walletInfo.isConnected}
+                  disabled={bookingLoading || !walletInfo.isConnected}
                   className="w-full bg-primary hover:bg-primary/90"
                   size="lg"
                 >
-                  {isBooking ? (
+                  {bookingLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mr-2" />
                       Processing Blockchain Transaction...
@@ -839,3 +947,19 @@ export default function RideBooking() {
     </div>
   )
 }
+
+export default withErrorBoundary(RideBooking, {
+  fallback: ({ error, retry }) => (
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-md mx-auto pt-20">
+        <ErrorDisplay
+          variant="card"
+          title="Booking System Error"
+          message={error?.message || "Something went wrong with the ride booking system"}
+          onRetry={retry}
+          showRetry
+        />
+      </div>
+    </div>
+  )
+})

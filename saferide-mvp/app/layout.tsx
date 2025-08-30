@@ -4,6 +4,7 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
+import { AuthProvider } from "@/lib/auth-context"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -25,11 +26,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased min-h-screen`}>
-        <Suspense fallback={<div>Loading...</div>}>
-          <div className="flex flex-col min-h-screen">
-            <main className="flex-1">{children}</main>
-          </div>
-        </Suspense>
+        <AuthProvider>
+          <Suspense fallback={<div>Loading...</div>}>
+            <div className="flex flex-col min-h-screen">
+              <main className="flex-1">{children}</main>
+            </div>
+          </Suspense>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>
