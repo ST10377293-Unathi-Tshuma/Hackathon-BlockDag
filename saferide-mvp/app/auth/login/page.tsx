@@ -40,7 +40,11 @@ export default function LoginPage() {
       login(response.user, response.tokens.accessToken)
       
       // Redirect to dashboard
-      router.push('/dashboard')
+      if(response.user.user_type === 'driver') {
+        router.push('/driver/dashboard')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (error: any) {
       console.error('Login failed:', error)
       setError(error.message || 'Login failed. Please check your credentials.')

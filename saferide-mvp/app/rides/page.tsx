@@ -407,6 +407,35 @@ function RideHistoryAndTracking() {
     },
   ]
 
+  // Sample shared ride for display when no rides are found
+  const sampleSharedRide: Ride = {
+    id: "R-2024-099",
+    date: "2024-12-30",
+    time: "2:00 PM",
+    from: "Point A",
+    to: "Midrand",
+    distance: "10.0 km",
+    duration: "25 min",
+    cost: 8.5,
+    status: "completed",
+    driver: {
+      id: "D-010",
+      name: "Anonymous Driver #X5Y7",
+      rating: 4.8,
+      avatar: "/sample-driver-avatar.png",
+      vehicle: "Toyota Prius 2023",
+      licensePlate: "SHA123",
+    },
+    rating: 4,
+    paymentMethod: "Blockchain Wallet",
+    rideType: "Shared",
+    route: [
+      { lat: -26.1000, lng: 28.0500, name: "Point A" },
+      { lat: -26.0800, lng: 28.0600, name: "Halfway Stop" },
+      { lat: -26.0600, lng: 28.0700, name: "Midrand" },
+    ],
+  }
+
   // Fetch ride history from API
   const fetchRideHistory = async () => {
     if (!user?.id) return
@@ -730,28 +759,109 @@ function RideHistoryAndTracking() {
         {/* Ride List */}
         <div className="space-y-4">
           {/* Loading State */}
-           {ridesLoading ? (
-             <LoadingState
-               variant="card"
-               message="Loading your ride history..."
-               className="py-12"
-             />
-           ) : filteredRides.length === 0 ? (
+          {ridesLoading ? (
+            <LoadingState
+              variant="card"
+              message="Loading your ride history..."
+              className="py-12"
+            />
+          ) : filteredRides.length === 0 ? (
             <Card>
-              <CardContent className="p-8 text-center">
-                <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-foreground mb-2">No rides found</h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchQuery || statusFilter !== "all" || dateFilter !== "all"
-                    ? "Try adjusting your filters to see more results."
-                    : "You haven't taken any rides yet. Book your first ride to get started!"}
-                </p>
-                <Button asChild className="bg-primary hover:bg-primary/90">
-                  <Link href="/book">
-                    <Car className="w-4 h-4 mr-2" />
-                    Book Your First Ride
-                  </Link>
-                </Button>
+              <CardContent className="p-6">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <Car className="w-6 h-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground">Try a Shared Ride!</h3>
+                  <p className="text-sm text-muted-foreground text-center">
+                    Save more by sharing your ride with others. Here’s an example of a shared ride:
+                  </p>
+                  {/* Sample Shared Ride Details */}
+                  <div className="w-full border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-foreground">{sampleSharedRide.id}</h4>
+                      <Badge variant="secondary" className={getStatusColor(sampleSharedRide.status)}>
+                        {getStatusIcon(sampleSharedRide.status)}
+                        <span className="ml-1 capitalize">{sampleSharedRide.status.replace("_", " ")}</span>
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm text-foreground flex items-center">
+                        <MapPin className="w-4 h-4 mr-2 text-primary" />
+                        <span>
+                          <strong>From:</strong> {sampleSharedRide.from}
+                        </span>
+                      </p>
+                      <p className="text-sm text-foreground flex items-center ml-6">
+                        <MapPin className="w-4 h-4 mr-2 text-muted-foreground" />
+                        <span>
+                          <strong>Stop:</strong> {sampleSharedRide.route![1].name}
+                        </span>
+                      </p>
+                      <p className="text-sm text-foreground flex items-center">
+                        <MapPin className="w-4 h-4 mr-2 text-destructive" />
+                        <span>
+                          <strong>To:</strong> {sampleSharedRide.to}
+                        </span>
+                      </p>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          {sampleSharedRide.date} at {sampleSharedRide.time}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {sampleSharedRide.duration}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Route className="w-4 h-4" />
+                          {sampleSharedRide.distance}
+                        </span>
+                      </div>
+                      {sampleSharedRide.driver && (
+                        <div className="flex items-center gap-3 mt-2">
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage src={sampleSharedRide.driver.avatar} alt={sampleSharedRide.driver.name} />
+                            <AvatarFallback>
+                              {sampleSharedRide.driver.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-medium text-foreground">{sampleSharedRide.driver.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {sampleSharedRide.driver.vehicle} • {sampleSharedRide.driver.licensePlate}
+                            </p>
+                            <div className="flex items-center gap-1">
+                              <Star className="w-4 h-4 fill-primary text-primary" />
+                              <span className="text-xs">{sampleSharedRide.driver.rating}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-2">
+                        <p className="text-sm text-muted-foreground">Ride Type: {sampleSharedRide.rideType}</p>
+                        <p className="text-lg font-bold text-foreground">${sampleSharedRide.cost}</p>
+                      </div>
+                      {sampleSharedRide.rating && (
+                        <div className="flex items-center gap-1">
+                          {[...Array(sampleSharedRide.rating)].map((_, i) => (
+                            <Star key={i} className="w-4 h-4 fill-primary text-primary" />
+                          ))}
+                          <span className="text-xs text-muted-foreground">{sampleSharedRide.rating} stars</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <Button asChild className="bg-primary hover:bg-primary/90">
+                    <Link href="/book">
+                      <Car className="w-4 h-4 mr-2" />
+                      Book a Shared Ride
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ) : (
