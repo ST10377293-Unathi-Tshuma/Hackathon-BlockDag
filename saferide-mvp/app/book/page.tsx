@@ -135,7 +135,7 @@ function RideBooking() {
 
   const fallbackDrivers: Driver[] = [
     {
-      id: "driver_1",
+      id: "James Bond",
       user_id: "user_1",
       license_number: "LIC000001",
       vehicle_info: {
@@ -153,7 +153,7 @@ function RideBooking() {
       avatar: "/avatars/driver1.png"
     },
     {
-      id: "driver_2",
+      id: "Thomas Green",
       user_id: "user_2",
       license_number: "LIC000002",
       vehicle_info: {
@@ -171,7 +171,7 @@ function RideBooking() {
       avatar: "/avatars/driver2.png"
     },
     {
-      id: "driver_3",
+      id: "Lorraine Khumalo",
       user_id: "user_3",
       license_number: "LIC000003",
       vehicle_info: {
