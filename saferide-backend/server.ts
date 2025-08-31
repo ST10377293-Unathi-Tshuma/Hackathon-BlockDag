@@ -13,18 +13,12 @@ dotenv.config();
 
 // Import routes
 import authRoutes from './api/routes/auth.js';
-import driverRoutes from './api/routes/drivers.js';
-import passengerRoutes from './api/routes/passengers.js';
-import rideRoutes from './api/routes/rides.js';
-import emergencyRoutes from './api/routes/emergency.js';
 
 // Import middleware
 import { authenticateToken } from './api/middleware/auth.js';
 import { errorHandler } from './api/middleware/errorHandler.js';
 import { requestLogger } from './api/middleware/logger.js';
 
-// Import services
-import { EmergencyService } from './api/services/EmergencyService.js';
 
 const app = express();
 const server = createServer(app);
