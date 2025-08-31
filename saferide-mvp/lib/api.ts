@@ -1,13 +1,13 @@
-import { 
-  ApiResponse, 
-  User, 
-  UserProfile, 
-  Driver, 
-  DriverVerification, 
-  Ride, 
-  RideRequest, 
-  EmergencyIncident, 
-  EmergencyContact, 
+import {
+  ApiResponse,
+  User,
+  UserProfile,
+  Driver,
+  DriverVerification,
+  Ride,
+  RideRequest,
+  EmergencyIncident,
+  EmergencyContact,
   EscrowTransaction,
   UserStats,
   DriverStats,
@@ -31,7 +31,7 @@ class ApiService {
   }
 
   private async request<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
@@ -77,14 +77,14 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
-    
+
     if (!response.success) {
       throw new Error(response.error || 'Login failed');
     }
-    
+
     // Set the token for future requests
     this.setAuthToken(response.data.tokens.accessToken);
-    
+
     return response.data;
   }
 
@@ -93,41 +93,49 @@ class ApiService {
     password: string;
     full_name: string;
     phone?: string;
-    user_type: 'passenger' | 'driver';
+    user_type: 'rider' | 'driver';
   }): Promise<{ user: User; tokens: { accessToken: string; refreshToken: string } }> {
-    const response = await this.request<{ user: User; tokens: { accessToken: string; refreshToken: string } }>('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
-    
+    const response = await this.request<
+      { user: User; tokens: { accessToken: string; refreshToken: string } } | undefined
+    >(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      }
+    );
+
+
     if (!response.success) {
       throw new Error(response.error || 'Registration failed');
     }
-    
+
     return response.data;
   }
 
   async refreshToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
-    const response = await this.request<{ accessToken: string; refreshToken: string }>('/api/auth/refresh', {
-      method: 'POST',
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
-    
-    if (!response.success) {
-      throw new Error(response.error || 'Token refresh failed');
-    }
-    
-    // Update the token for future requests
-    this.setAuthToken(response.data.accessToken);
-    
-    return response.data;
+  const response = await this.request<{ tokens: { accessToken: string; refreshToken: string } }>('/api/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+
+  if (!response.success) {
+    throw new Error(response.error || 'Token refresh failed');
   }
+
+  // Extract tokens correctly
+  const tokens = response.data.tokens || undefined;
+  this.setAuthToken(tokens.accessToken);
+
+  return tokens;
+}
+
 
   async logout(): Promise<void> {
     await this.request('/api/auth/logout', {
       method: 'POST',
     });
-    
+
     // Clear the token
     this.token = null;
   }
@@ -158,7 +166,7 @@ class ApiService {
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
     if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
-    
+
     const query = queryParams.toString();
     return this.request<PaginatedResponse<Ride>>(`/api/users/${userId}/rides${query ? `?${query}` : ''}`);
   }

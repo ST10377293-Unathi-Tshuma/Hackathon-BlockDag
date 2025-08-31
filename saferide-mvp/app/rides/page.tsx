@@ -31,13 +31,14 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { ApiService } from "@/lib/api"
-import type { Ride as ApiRide } from "@/lib/types"
+import type { Ride as ApiRide, ApiResponse } from "@/lib/types"
 import { useAuth } from "@/lib/auth-context"
 import { useApiState } from "@/hooks/useApiState"
 import ErrorDisplay from "@/components/ErrorDisplay"
 import LoadingState from "@/components/LoadingState"
 import { withErrorBoundary } from "@/components/ErrorBoundary"
 
+// Updated Ride interface to match ApiRide
 interface Ride {
   id: string
   date: string
@@ -87,7 +88,7 @@ function RideHistoryAndTracking() {
     loading: ridesLoading,
     error: ridesError,
     execute: loadRideHistory
-  } = useApiState()
+  } = useApiState<Ride[]>()
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -100,7 +101,7 @@ function RideHistoryAndTracking() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <LoadingState variant="page" message="Authenticating..." />
+        <LoadingState variant="card" message="Authenticating..." />
       </div>
     )
   }
@@ -208,6 +209,202 @@ function RideHistoryAndTracking() {
       paymentMethod: "Blockchain Wallet",
       rideType: "Premium",
     },
+    {
+      id: "R-2024-006",
+      date: "2024-12-15",
+      time: "8:00 AM",
+      from: "Suburban Park",
+      to: "City Center",
+      distance: "10.5 km",
+      duration: "28 min",
+      cost: 22.0,
+      status: "completed",
+      driver: {
+        id: "D-004",
+        name: "Anonymous Driver #G2H8",
+        rating: 4.6,
+        avatar: "/experienced-driver-avatar.png",
+        vehicle: "Ford Escape 2020",
+        licensePlate: "GHI789",
+      },
+      rating: 3,
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Economy",
+      route: [
+        { lat: 40.7359, lng: -73.9911, name: "Suburban Park" },
+        { lat: 40.7484, lng: -73.9857, name: "City Center" },
+      ],
+    },
+    {
+      id: "R-2024-007",
+      date: "2024-12-14",
+      time: "4:20 PM",
+      from: "Train Station",
+      to: "University Campus",
+      distance: "7.3 km",
+      duration: "20 min",
+      cost: 16.8,
+      status: "completed",
+      driver: {
+        id: "D-005",
+        name: "Anonymous Driver #J4K9",
+        rating: 4.9,
+        avatar: "/courteous-driver-avatar.png",
+        vehicle: "Tesla Model 3 2023",
+        licensePlate: "JKL012",
+      },
+      rating: 5,
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Premium",
+    },
+    {
+      id: "R-2024-008",
+      date: "2024-12-13",
+      time: "11:45 AM",
+      from: "Library",
+      to: "Coffee Shop",
+      distance: "3.8 km",
+      duration: "15 min",
+      cost: 10.0,
+      status: "completed",
+      driver: {
+        id: "D-006",
+        name: "Anonymous Driver #M7N2",
+        rating: 4.5,
+        avatar: "/friendly-driver-avatar.png",
+        vehicle: "Hyundai Elantra 2021",
+        licensePlate: "MNO345",
+      },
+      rating: 4,
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Economy",
+    },
+    {
+      id: "R-2024-009",
+      date: "2024-12-12",
+      time: "6:15 PM",
+      from: "Gym",
+      to: "Apartment Complex",
+      distance: "9.1 km",
+      duration: "24 min",
+      cost: 19.5,
+      status: "cancelled",
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Express",
+    },
+    {
+      id: "R-2024-010",
+      date: "2024-12-26",
+      time: "10:00 AM",
+      from: "Hotel Lobby",
+      to: "Convention Center",
+      distance: "4.5 km",
+      duration: "17 min",
+      cost: 14.0,
+      status: "scheduled",
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Premium",
+      route: [
+        { lat: 40.7577, lng: -73.9857, name: "Hotel Lobby" },
+        { lat: 40.7505, lng: -73.9934, name: "Convention Center" },
+      ],
+    },
+    {
+      id: "R-2024-011",
+      date: "2024-12-10",
+      time: "1:30 PM",
+      from: "Shopping Plaza",
+      to: "Movie Theater",
+      distance: "6.2 km",
+      duration: "19 min",
+      cost: 13.75,
+      status: "completed",
+      driver: {
+        id: "D-007",
+        name: "Anonymous Driver #P8Q3",
+        rating: 4.8,
+        avatar: "/reliable-driver-avatar.png",
+        vehicle: "Chevrolet Malibu 2022",
+        licensePlate: "PQR678",
+      },
+      rating: 4,
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Economy",
+    },
+    {
+      id: "R-2024-012",
+      date: "2024-12-09",
+      time: "9:15 PM",
+      from: "Concert Venue",
+      to: "Downtown Bar",
+      distance: "5.7 km",
+      duration: "16 min",
+      cost: 11.5,
+      status: "completed",
+      driver: {
+        id: "D-008",
+        name: "Anonymous Driver #R9S4",
+        rating: 4.7,
+        avatar: "/professional-driver-avatar.png",
+        vehicle: "Kia Optima 2020",
+        licensePlate: "STU901",
+      },
+      rating: 5,
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Economy",
+    },
+    {
+      id: "R-2024-013",
+      date: "2024-12-08",
+      time: "7:00 AM",
+      from: "Residential Area",
+      to: "Airport Terminal 1",
+      distance: "14.8 km",
+      duration: "38 min",
+      cost: 30.0,
+      status: "completed",
+      driver: {
+        id: "D-009",
+        name: "Anonymous Driver #T1U6",
+        rating: 4.9,
+        avatar: "/courteous-driver-avatar.png",
+        vehicle: "BMW X3 2023",
+        licensePlate: "VWX234",
+      },
+      rating: 5,
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Premium",
+    },
+    {
+      id: "R-2024-014",
+      date: "2024-12-07",
+      time: "3:45 PM",
+      from: "Office Park",
+      to: "Train Station",
+      distance: "8.9 km",
+      duration: "23 min",
+      cost: 17.25,
+      status: "cancelled",
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Express",
+    },
+    {
+      id: "R-2024-015",
+      date: "2024-12-27",
+      time: "5:30 PM",
+      from: "City Park",
+      to: "Restaurant District",
+      distance: "7.6 km",
+      duration: "21 min",
+      cost: 16.5,
+      status: "scheduled",
+      paymentMethod: "Blockchain Wallet",
+      rideType: "Economy",
+      route: [
+        { lat: 40.7812, lng: -73.9665, name: "City Park" },
+        { lat: 40.7661, lng: -73.9771, name: "Restaurant District" },
+      ],
+    },
   ]
 
   // Fetch ride history from API
@@ -226,22 +423,22 @@ function RideHistoryAndTracking() {
         limit: 50
       })
       
-      if (response.success) {
-        const apiRides = response.data.data
+      if (response.success && response.data?.data) {
+        const apiRides = response.data.data as ApiRide[]
       
         // Transform API rides to local Ride interface
         const transformedRides: Ride[] = apiRides.map((apiRide: ApiRide) => ({
           id: apiRide.id,
-          date: new Date(apiRide.pickup_time).toISOString().split('T')[0],
-          time: new Date(apiRide.pickup_time).toLocaleTimeString('en-US', {
+          date: new Date(apiRide.created_at).toISOString().split('T')[0],
+          time: new Date(apiRide.created_at).toLocaleTimeString('en-US', {
             hour: 'numeric',
             minute: '2-digit',
             hour12: true
           }),
-          from: apiRide.pickup_location,
-          to: apiRide.destination,
-          distance: `${apiRide.distance} km`,
-          duration: `${apiRide.duration} min`,
+          from: typeof apiRide.pickup_location === 'string' ? apiRide.pickup_location : apiRide.pickup_location.name,
+          to: typeof apiRide.destination === 'string' ? apiRide.destination : apiRide.destination.name,
+          distance: `${apiRide.distance_km} km`,
+          duration: `${apiRide.duration_mins} min`,
           cost: apiRide.fare,
           status: apiRide.status as "completed" | "cancelled" | "in_progress" | "scheduled",
           driver: apiRide.driver ? {
@@ -252,13 +449,13 @@ function RideHistoryAndTracking() {
             vehicle: apiRide.driver.vehicle_info || "Vehicle",
             licensePlate: "***-***"
           } : undefined,
-          rating: apiRide.passenger_rating,
+          rating: apiRide.rating,
           paymentMethod: "Blockchain Wallet",
-          rideType: apiRide.ride_type || "Economy"
+          rideType: apiRide.vehicle_type || "Economy"
         }))
       
         setRides(transformedRides)
-        return transformedRides
+        return { success: true, data: transformedRides }
       } else {
         // Fallback to mock data on API failure
         setRides(mockRides)
@@ -522,9 +719,9 @@ function RideHistoryAndTracking() {
         {/* Error Display */}
         {ridesError && (
           <ErrorDisplay
-            variant="alert"
+            variant="card"
             title="Failed to Load Ride History"
-            message={ridesError.message || "Unable to fetch your ride history. Please try again."}
+            errorMessage={ridesError.message || "Unable to fetch your ride history. Please try again."}
             onRetry={fetchRideHistory}
             showRetry
           />
@@ -794,12 +991,12 @@ function RideHistoryAndTracking() {
 }
 
 export default withErrorBoundary(RideHistoryAndTracking, {
-  fallback: ({ error, resetError }) => (
+  fallback: (
     <ErrorDisplay
-      variant="page"
+      variant="card"
       title="Ride History System Error"
-      message={error?.message || "An unexpected error occurred in the ride history system."}
-      onRetry={resetError}
+      errorMessage="An unexpected error occurred in the ride history system."
+      onRetry={() => {}}
       showRetry
     />
   )

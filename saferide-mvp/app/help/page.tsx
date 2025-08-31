@@ -668,7 +668,7 @@ const HelpAndSupport = memo(() => {
                       <div>
                         <p className="font-medium text-foreground text-sm">Verify passengers</p>
                         <p className="text-xs text-muted-foreground">
-                          Confirm passenger identity before starting the trip
+                          passenger identity before starting the trip
                         </p>
                       </div>
                     </div>

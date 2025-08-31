@@ -21,7 +21,7 @@ export default function SignupPage() {
     confirmPassword: "",
     fullName: "",
     phone: "",
-    userType: "passenger" as "passenger" | "driver"
+    userType: "rider" as "rider" | "driver"
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -228,7 +228,7 @@ export default function SignupPage() {
                   <SelectValue placeholder="Select account type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="passenger">Passenger</SelectItem>
+                  <SelectItem value="rider">Rider</SelectItem>
                   <SelectItem value="driver">Driver</SelectItem>
                 </SelectContent>
               </Select>

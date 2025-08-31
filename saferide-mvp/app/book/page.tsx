@@ -52,7 +52,7 @@ const apiService = new ApiService()
 function RideBooking() {
   const router = useRouter()
   const { user, isAuthenticated, isLoading, logout } = useAuth()
-  
+
   // State for API data
   const [rideOptions, setRideOptions] = useState<RideOption[]>([])
   const [availableDrivers, setAvailableDrivers] = useState<Driver[]>([])
@@ -62,28 +62,28 @@ function RideBooking() {
     console.log('rideOptions:', rideOptions)
     console.log('availableDrivers:', availableDrivers)
   }, [rideOptions, availableDrivers])
-  
+
   const {
     loading: optionsLoading,
     error: optionsError,
     execute: loadRideOptions,
     retry: retryOptions
   } = useApiState()
-  
+
   const {
     loading: driversLoading,
     error: driversError,
     execute: searchDriversApi,
     retry: retryDrivers
   } = useApiState()
-  
+
   const {
     loading: bookingLoading,
     error: bookingError,
     execute: createBookingApi,
     retry: retryBooking
   } = useApiState()
-  
+
   const [currentStep, setCurrentStep] = useState<"location" | "options" | "drivers" | "booking" | "confirmed">(
     "location",
   )
@@ -189,15 +189,7 @@ function RideBooking() {
       avatar: "/avatars/driver3.png"
     }
   ]
-  // Helper to get driver display name (use real name if available, else fallback)
-  function getDriverDisplayName(driver: Driver) {
-    // If your Driver type has a 'name' or 'full_name' property, use it
-    // Otherwise, fallback to "Driver {id}"
-    // Example: return driver.name || `Driver ${driver.id}`
-    // If your backend provides a 'name' field, use that
-    // @ts-expect-error: name may not exist on all Driver objects
-    return driver.name || `Driver ${driver.id}`
-  }
+
   const {
     walletInfo,
     isConnecting,
@@ -238,7 +230,7 @@ function RideBooking() {
         if (token) {
           apiService.setAuthToken(token)
         }
-        
+
         // Fetch available ride options from backend
         return await apiService.getRideOptions({
           pickup,
@@ -246,7 +238,7 @@ function RideBooking() {
           rideType: 'all'
         })
       })
-      
+
       if (Array.isArray(result)) {
         setRideOptions(result)
         setCurrentStep("options")
@@ -268,7 +260,7 @@ function RideBooking() {
       if (token) {
         apiService.setAuthToken(token)
       }
-      
+
       // Search for available drivers
       return await apiService.searchDrivers({
         pickup,
@@ -277,7 +269,7 @@ function RideBooking() {
         maxDrivers: 5
       })
     })
-    
+
     if (Array.isArray(result)) {
       setAvailableDrivers(result)
     } else {
@@ -291,69 +283,90 @@ function RideBooking() {
     setCurrentStep("booking")
   }
 
-  const handleBookingConfirm = async () => {
-    if (!walletInfo.isConnected) {
-      alert("Please connect your wallet first!")
-      return
-    }
+  // Inside the RideBooking function, add this function before the return statement
+  const handleNextStep = async () => {
+    switch (currentStep) {
+      case "location":
+        if (!pickup || !destination) {
+          alert("Please enter both pickup and destination locations.");
+          return;
+        }
+        await handleLocationSubmit(); // Calls API to fetch ride options and sets step to "options"
+        break;
 
+      case "options":
+        if (!selectedRide) {
+          alert("Please select a ride option.");
+          return;
+        }
+        await handleRideSelection(selectedRide); // Calls API to fetch drivers and sets step to "drivers"
+        break;
+
+      case "drivers":
+        if (!selectedDriver) {
+          alert("Please select a driver.");
+          return;
+        }
+        handleDriverSelection(selectedDriver); // Sets step to "booking"
+        break;
+
+      case "booking":
+        if (!walletInfo.isConnected) {
+          alert("Please connect your wallet to confirm the booking.");
+          return;
+        }
+        await handleBookingConfirm(); // Processes booking and sets step to "confirmed"
+        break;
+
+      case "confirmed":
+        // No next step after confirmation; optionally redirect to home or reset
+        router.push("/");
+        break;
+
+      default:
+        console.error("Unknown step:", currentStep);
+    }
+  };
+
+  const handleBookingConfirm = async () => {
     if (!selectedRide || !selectedDriver) return
 
     clearError()
 
+    // Use mock data for demonstration
     await createBookingApi(async () => {
-      // Set authentication token for API requests
-      const token = localStorage.getItem('token')
-      if (token) {
-        apiService.setAuthToken(token)
-      }
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1500))
+
+      // Mock booking data
+      const mockBookingId = `booking_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const mockTransactionHash = `0x${Math.random().toString(36).substr(2, 40)}`
+      const mockEscrowHash = `0x${Math.random().toString(36).substr(2, 40)}`
+
+      console.log('Using mock booking data for demonstration')
+      console.log('Mock booking ID:', mockBookingId)
+      console.log('Mock transaction hash:', mockTransactionHash)
+
+      // Set mock data
+      setBookingId(mockBookingId)
+      setTransactionHash(mockTransactionHash)
+      setEscrowHash(mockEscrowHash)
+
+      // Move to confirmed step
+      setCurrentStep("confirmed")
       
-      // Create booking request
-      const bookingRequest: BookingRequest = {
-        pickup,
-        destination,
-        rideType: selectedRide.id,
-        driverId: selectedDriver.id,
-        fare: selectedRide.price + 1.5,
-        paymentMethod: 'blockchain',
-        walletAddress: walletInfo.address,
-        userId: user.id,
-        passengerCount: 0
-      }
-
-      // Create ride booking via API
-      const bookingResult = await apiService.createRideBooking(bookingRequest)
+      // Automatically navigate to dashboard after 3 seconds
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 3000)
       
-      if (bookingResult.success && bookingResult.data) {
-        setBookingId(bookingResult.data.bookingId)
-        
-        // Create blockchain transactions
-        const rideTransaction = await createRideBooking(
-          pickup,
-          destination,
-          selectedRide.id === "economy" ? 0 : selectedRide.id === "premium" ? 1 : 2,
-          selectedRide.price + 1.5,
-        )
-
-        setTransactionHash(rideTransaction.txHash)
-
-        const mockDriverAddress = "0x742d35Cc6634C0532925a3b8D4C9db96590c6C87" // Mock driver wallet
-        const escrowTx = await createEscrowPayment(rideTransaction.rideId, mockDriverAddress, selectedRide.price + 1.5)
-
-        setEscrowHash(escrowTx)
-        
-        // Update booking with blockchain transaction hashes
-        await apiService.updateRideBooking(bookingResult.data.bookingId, {
-          // @ts-expect-error: transactionHash and escrowHash are extra fields for backend update
-          transactionHash: rideTransaction.txHash,
-          escrowHash: escrowTx,
-          status: 'accepted'
-        })
-        
-        setCurrentStep("confirmed")
-        return bookingResult
-      } else {
-        throw new Error("Ride booking failed")
+      return {
+        success: true,
+        data: {
+          bookingId: mockBookingId,
+          status: 'confirmed',
+          message: 'Mock booking created successfully'
+        }
       }
     })
   }
@@ -478,7 +491,7 @@ function RideBooking() {
             title="Blockchain Error"
             description={blockchainError}
             onDismiss={clearError}
-            className="mb-6" error={null}          />
+            className="mb-6" error={null} />
         )}
 
         {(optionsError || driversError || bookingError) && (
@@ -535,8 +548,8 @@ function RideBooking() {
                 // Create ride booking via API
                 return await apiService.createRideBooking(bookingRequest)
               })
-            } }
-            className="mb-6" error={null}          />
+            }}
+            className="mb-6" error={null} />
         )}
 
         {locationError && (
@@ -556,22 +569,7 @@ function RideBooking() {
           </Alert>
         )}
 
-        {!walletInfo.isConnected && currentStep !== "location" && (
-          <Alert className="mb-6 border-primary/50">
-            <Wallet className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              Please connect your wallet to continue with the booking process.
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={connectWallet}
-                className="ml-2 h-auto p-0 text-primary hover:text-primary/80"
-              >
-                Connect Now
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Wallet connection alert removed for mock data demonstration */}
 
         {/* Location Input Step */}
         {currentStep === "location" && (
@@ -702,8 +700,8 @@ function RideBooking() {
                   <p className="text-xs sm:text-sm text-muted-foreground mb-4">
                     No ride options found for this route. Please try again.
                   </p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={handleLocationSubmit}
                     className="bg-transparent"
                   >
@@ -785,8 +783,8 @@ function RideBooking() {
                   <p className="text-xs sm:text-sm text-muted-foreground mb-4">
                     No drivers found in your area. Please try again later.
                   </p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     onClick={() => handleRideSelection(selectedRide!)}
                     className="bg-transparent"
                   >
@@ -926,61 +924,46 @@ function RideBooking() {
 
                 <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg space-y-3">
                   <div className="flex items-start gap-2">
-                    <Wallet className="w-5 h-5 text-primary mt-0.5" />
+                    <CheckCircle className="w-5 h-5 text-primary mt-0.5" />
                     <div className="flex-1">
-                      <p className="font-medium text-foreground">Blockchain Payment</p>
+                      <p className="font-medium text-foreground">Mock Payment System</p>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Payment will be processed via smart contract on BlockDAG network
+                        Using mock data for demonstration purposes
                       </p>
 
-                      {walletInfo.isConnected && (
-                        <div className="space-y-2 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Wallet:</span>
-                            <span className="font-mono">{formatAddress(walletInfo.address)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Balance:</span>
-                            <span>{Number.parseFloat(walletInfo.balance).toFixed(4)} BDAG</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Network:</span>
-                            <span>BlockDAG</span>
-                          </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Payment Method:</span>
+                          <span>Mock Payment</span>
                         </div>
-                      )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status:</span>
+                          <span className="text-green-600">Ready</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Network:</span>
+                          <span>Demo Mode</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  {!walletInfo.isConnected && (
-                    <Button
-                      onClick={connectWallet}
-                      disabled={isConnecting}
-                      variant="outline"
-                      size="sm"
-                      className="w-full bg-transparent"
-                    >
-                      <Wallet className="w-4 h-4 mr-2" />
-                      {isConnecting ? "Connecting..." : "Connect Wallet to Continue"}
-                    </Button>
-                  )}
                 </div>
 
                 <Button
                   onClick={handleBookingConfirm}
-                  disabled={bookingLoading || !walletInfo.isConnected}
+                  disabled={bookingLoading}
                   className="w-full bg-primary hover:bg-primary/90"
                   size="lg"
                 >
                   {bookingLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin mr-2" />
-                      Processing Blockchain Transaction...
+                      Processing Booking...
                     </>
                   ) : (
                     <>
-                      <Wallet className="w-4 h-4 mr-2" />
-                      Confirm & Pay ${(selectedRide.price + 1.5).toFixed(2)}
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Confirm Booking - ${(selectedRide.price + 1.5).toFixed(2)}
                     </>
                   )}
                 </Button>
@@ -999,12 +982,15 @@ function RideBooking() {
                 </div>
                 <h2 className="text-2xl font-bold text-foreground mb-2">Ride Confirmed!</h2>
                 <p className="text-muted-foreground mb-4">
-                  Your ride has been booked on the blockchain. Booking ID:{" "}
+                  Your ride has been booked successfully (mock data). Booking ID:{" "}
                   <span className="font-mono font-medium">{bookingId}</span>
+                </p>
+                <p className="text-sm text-primary mb-4">
+                  You'll be redirected to your dashboard in a few seconds...
                 </p>
 
                 <div className="bg-muted/30 rounded-lg p-4 mb-6 space-y-3">
-                  <h4 className="font-medium text-foreground">Blockchain Transactions</h4>
+                  <h4 className="font-medium text-foreground">Mock Transactions</h4>
 
                   {transactionHash && (
                     <div className="flex items-center justify-between text-sm">
@@ -1045,30 +1031,30 @@ function RideBooking() {
 
                 <div className="bg-muted/30 rounded-lg p-4 mb-6">
                   <div className="flex items-center justify-between mb-4">
-                                          <div className="flex items-center gap-3">
-                        <Avatar className="w-12 h-12">
-                          <AvatarFallback>
-                            Driver {selectedDriver.id}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Driver {selectedDriver.id}</span>
-                            <Badge variant={selectedDriver.verification_status === 'verified' ? 'default' : 'secondary'}>
-                              {selectedDriver.verification_status}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                            <span className="text-sm font-medium">{selectedDriver.rating}</span>
-                            <span className="text-sm text-muted-foreground">• {selectedDriver.vehicle_info.make} {selectedDriver.vehicle_info.model}</span>
-                          </div>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-12 h-12">
+                        <AvatarFallback>
+                          Driver {selectedDriver.id}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">Driver {selectedDriver.id}</span>
+                          <Badge variant={selectedDriver.verification_status === 'verified' ? 'default' : 'secondary'}>
+                            {selectedDriver.verification_status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm font-medium">{selectedDriver.rating}</span>
+                          <span className="text-sm text-muted-foreground">• {selectedDriver.vehicle_info.make} {selectedDriver.vehicle_info.model}</span>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-lg font-bold text-primary">5-10 min</div>
-                        <div className="text-xs text-muted-foreground">away</div>
-                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-primary">5-10 min</div>
+                      <div className="text-xs text-muted-foreground">away</div>
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -1079,8 +1065,11 @@ function RideBooking() {
                     <Button variant="outline" className="w-full bg-transparent">
                       Contact Driver
                     </Button>
-                    <Button variant="ghost" asChild>
-                      <Link href="/">Return to Home</Link>
+                    <Button variant="default" asChild className="w-full bg-secondary hover:bg-secondary/80">
+                      <Link href="/dashboard">
+                        <Home className="w-4 h-4 mr-2" />
+                        Go to Dashboard
+                      </Link>
                     </Button>
                   </div>
                 </div>
@@ -1093,23 +1082,4 @@ function RideBooking() {
   )
 }
 
-function RideBookingFallback({ error, retry }: { error: Error; retry: () => void }) {
-  return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-md mx-auto pt-20">
-        <ErrorDisplay
-          variant="card"
-          title="Booking System Error"
-          description={error?.message || "Something went wrong with the ride booking system"}
-          onRetry={retry}
-          showRetry
-          error={error}
-        />
-      </div>
-    </div>
-  )
-}
-
-export default withErrorBoundary(RideBooking, {
-  fallback: (props: { error: Error; retry: () => void }) => <RideBookingFallback {...props} />
-})
+export default withErrorBoundary(RideBooking)
